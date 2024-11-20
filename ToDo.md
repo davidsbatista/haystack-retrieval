@@ -3,7 +3,7 @@
 
 - [X] Sentence-Window Retrieval
 - [X] Auto-Merging Retrieval
-- [ ] Maximum Marginal Relevance - need to be implemented
+- [X] Maximum Marginal Relevance
 - [X] Hybrid Retrieval
 - [X] Reciprocal Rank fusion
 

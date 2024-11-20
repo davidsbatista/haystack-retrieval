@@ -20,6 +20,7 @@ from hybrid_search import hybrid_search
 from hyde import rag_with_hyde
 from multi_query import multi_query_pipeline
 from sentence_window_retrieval import rag_sentence_window_retrieval
+from maximal_marginal_relevance import mmr
 
 
 def read_question_answers(base_path: str) -> Tuple[List[str], List[str]]:
@@ -97,7 +98,6 @@ def run_rag(rag, questions):
 
     return retrieved_contexts, predicted_answers
 
-
 def multi_query_eval(answers, doc_store, embedding_model, questions):
     multi_query_pip = multi_query_pipeline(doc_store, embedding_model)
     predicted_answers = []
@@ -115,7 +115,6 @@ def multi_query_eval(answers, doc_store, embedding_model, questions):
             retrieved_contexts.append(retrieved_contexts)
     results, inputs = run_evaluation(questions, answers, retrieved_contexts, predicted_answers, embedding_model)
     eval_results_multi_query = EvaluationRunResult(run_name="multi-query", inputs=inputs, results=results)
-
 
 def hybrid_search_eval(answers, doc_store, embedding_model, questions):
     # NOTE: it needs a cross-encoder to work, takes pairs of sentences as input and produces a similarity score
@@ -139,7 +138,6 @@ def hybrid_search_eval(answers, doc_store, embedding_model, questions):
     results, inputs = run_evaluation(questions, answers, retrieved_contexts, predicted_answers, embedding_model)
     eval_results_hybrid = EvaluationRunResult(run_name="hybrid-retrieval", inputs=inputs, results=results)
 
-
 def auto_merging_eval(answers, base_path, embedding_model, questions, top_k):
     pdf_documents = transform_pdf_to_documents(base_path)
     leaf_doc_store, parent_doc_store = hierarchical_indexing(pdf_documents, embedding_model)
@@ -161,7 +159,6 @@ def auto_merging_eval(answers, base_path, embedding_model, questions, top_k):
     results, inputs = run_evaluation(questions, answers, retrieved_contexts, predicted_answers, embedding_model)
     eval_results_auto_merging = EvaluationRunResult(run_name="auto-merging-retrieval", inputs=inputs, results=results)
 
-
 def hyde_eval(answers, doc_store, embedding_model, questions, top_k):
     rag_hyde = rag_with_hyde(doc_store, embedding_model, top_k)
     predicted_answers = []
@@ -181,7 +178,6 @@ def hyde_eval(answers, doc_store, embedding_model, questions, top_k):
     results, inputs = run_evaluation(questions, answers, retrieved_contexts, predicted_answers, embedding_model)
     eval_results_hyde = EvaluationRunResult(run_name="hyde", inputs=inputs, results=results)
 
-
 def sentence_window_eval(answers, doc_store, embedding_model, questions, top_k):
     rag_window_retrieval = rag_sentence_window_retrieval(doc_store, embedding_model, top_k)
     retrieved_contexts, predicted_answers = run_rag(rag_window_retrieval, questions)
@@ -190,7 +186,6 @@ def sentence_window_eval(answers, doc_store, embedding_model, questions, top_k):
     print(eval_results_rag_window.run_name)
     print(eval_results_rag_window.score_report())
     print()
-
 
 def main():
     base_path = "data/ARAGOG/"
@@ -216,6 +211,23 @@ def main():
 
     # Multi-query
     multi_query_eval(answers, doc_store, embedding_model, questions)
+
+    # Maximal Marginal Relevance
+    mmr_pipeline = mmr(doc_store, embedding_model)
+    predicted_answers = []
+    retrieved_contexts = []
+    for q in tqdm(questions):
+        try:
+            response = mmr_pipeline.run(data = {"text_embedder": {"text": q}, "prompt_builder": {"question": q}, "ranker": {"query": q}, "answer_builder": {"query": q}})
+            predicted_answers.append(response["answer_builder"]["answers"][0].data)
+            retrieved_contexts.append([d.content for d in response["answer_builder"]["answers"][0].documents])
+        except BadRequestError as e:
+            print(f"Error with question: {q}")
+            print(e)
+            predicted_answers.append("error")
+            retrieved_contexts.append(retrieved_contexts)
+    results, inputs = run_evaluation(questions, answers, retrieved_contexts, predicted_answers, embedding_model)
+
 
 if __name__ == "__main__":
     main()
