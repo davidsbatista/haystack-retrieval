@@ -187,6 +187,25 @@ def sentence_window_eval(answers, doc_store, embedding_model, questions, top_k):
     print(eval_results_rag_window.score_report())
     print()
 
+def maximum_marginal_relevance_reranking(answers, doc_store, embedding_model, questions):
+    mmr_pipeline = mmr(doc_store, embedding_model)
+    predicted_answers = []
+    retrieved_contexts = []
+    for q in tqdm(questions):
+        try:
+            response = mmr_pipeline.run(
+                data={"text_embedder": {"text": q}, "prompt_builder": {"question": q}, "ranker": {"query": q},
+                      "answer_builder": {"query": q}})
+            predicted_answers.append(response["answer_builder"]["answers"][0].data)
+            retrieved_contexts.append([d.content for d in response["answer_builder"]["answers"][0].documents])
+        except BadRequestError as e:
+            print(f"Error with question: {q}")
+            print(e)
+            predicted_answers.append("error")
+            retrieved_contexts.append(retrieved_contexts)
+    results, inputs = run_evaluation(questions, answers, retrieved_contexts, predicted_answers, embedding_model)
+
+
 def main():
     base_path = "data/ARAGOG/"
     embedding_model = "sentence-transformers/all-MiniLM-L6-v2"
@@ -213,20 +232,7 @@ def main():
     multi_query_eval(answers, doc_store, embedding_model, questions)
 
     # Maximal Marginal Relevance
-    mmr_pipeline = mmr(doc_store, embedding_model)
-    predicted_answers = []
-    retrieved_contexts = []
-    for q in tqdm(questions):
-        try:
-            response = mmr_pipeline.run(data = {"text_embedder": {"text": q}, "prompt_builder": {"question": q}, "ranker": {"query": q}, "answer_builder": {"query": q}})
-            predicted_answers.append(response["answer_builder"]["answers"][0].data)
-            retrieved_contexts.append([d.content for d in response["answer_builder"]["answers"][0].documents])
-        except BadRequestError as e:
-            print(f"Error with question: {q}")
-            print(e)
-            predicted_answers.append("error")
-            retrieved_contexts.append(retrieved_contexts)
-    results, inputs = run_evaluation(questions, answers, retrieved_contexts, predicted_answers, embedding_model)
+    maximum_marginal_relevance_reranking(answers, doc_store, embedding_model, questions)
 
 
 if __name__ == "__main__":

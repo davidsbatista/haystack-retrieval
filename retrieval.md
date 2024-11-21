@@ -74,7 +74,8 @@ response synthesis by  utilizing the original text.
 
 During build-time: 
 - We ingest each document, and use a LLM to extract a summary from each document. 
-- We also split the document up into text chunks (nodes). Both the summary and the nodes are stored within our Document Store abstraction. 
+- We also split the document up into text chunks (nodes). 
+- Both the summary and the nodes are stored within our Document Store abstraction. 
 - We maintain a mapping from the summary to the source document/nodes.
 
 During query-time: 

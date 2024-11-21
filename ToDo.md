@@ -10,6 +10,6 @@
 ## LLM-based Retrieval
 
 - [X] Hypothetical Document Embeddings - HyDE
-- [X] Multi-Query - need to be implemented 
+- [X] Multi-Query 
 - [ ] Document Summary Indexing - need to be implemented
 - [ ] Contextual Retrieval - need to be implemented
