@@ -21,6 +21,7 @@ from hyde import rag_with_hyde
 from multi_query import multi_query_pipeline
 from sentence_window_retrieval import rag_sentence_window_retrieval
 from maximal_marginal_relevance import mmr
+from document_summary_indexing import indexing_doc_summarisation, doc_summarisation_query_pipeline
 
 
 def read_question_answers(base_path: str) -> Tuple[List[str], List[str]]:
@@ -205,6 +206,15 @@ def maximum_marginal_relevance_reranking(answers, doc_store, embedding_model, qu
             retrieved_contexts.append(retrieved_contexts)
     results, inputs = run_evaluation(questions, answers, retrieved_contexts, predicted_answers, embedding_model)
 
+def doc_summary_indexing(embedding_model: str, base_path: str, chunk_doc_store):
+
+    summaries_doc_store = indexing_doc_summarisation(embedding_model, base_path)
+    print("Indexing summaries...")
+
+    doc_summarisation_query_pipeline(
+        chunk_doc_store=chunk_doc_store, summary_doc_store=summaries_doc_store, embedding_model=embedding_model
+    )
+
 
 def main():
     base_path = "data/ARAGOG/"
@@ -234,6 +244,8 @@ def main():
     # Maximal Marginal Relevance
     maximum_marginal_relevance_reranking(answers, doc_store, embedding_model, questions)
 
+    # Document Summarisation
+    doc_summary_indexing(embedding_model, base_path, doc_store)
 
 if __name__ == "__main__":
     main()
