@@ -23,7 +23,6 @@ from sentence_window_retrieval import rag_sentence_window_retrieval
 from maximal_marginal_relevance import mmr
 from document_summary_indexing import indexing_doc_summarisation, doc_summarisation_query_pipeline
 
-
 def read_question_answers(base_path: str) -> Tuple[List[str], List[str]]:
     with open(base_path + "eval_questions.json", "r") as f:
         data = json.load(f)
@@ -206,15 +205,28 @@ def maximum_marginal_relevance_reranking(answers, doc_store, embedding_model, qu
             retrieved_contexts.append(retrieved_contexts)
     results, inputs = run_evaluation(questions, answers, retrieved_contexts, predicted_answers, embedding_model)
 
-def doc_summary_indexing(embedding_model: str, base_path: str, chunk_doc_store):
+def doc_summary_indexing(embedding_model: str, base_path: str, questions, answers):
 
-    summaries_doc_store = indexing_doc_summarisation(embedding_model, base_path)
+    summaries_doc_store, chunk_doc_store = indexing_doc_summarisation(embedding_model, base_path)
     print("Indexing summaries...")
-
-    doc_summarisation_query_pipeline(
-        chunk_doc_store=chunk_doc_store, summary_doc_store=summaries_doc_store, embedding_model=embedding_model
+    query_pipe = doc_summarisation_query_pipeline(
+        chunk_doc_store=chunk_doc_store, summaries_doc_store=summaries_doc_store, embedding_model=embedding_model
     )
-
+    predicted_answers = []
+    retrieved_contexts = []
+    for q in tqdm(questions):
+        try:
+            response = query_pipe.run(
+                data={"text_embedder": {"text": q}, "prompt_builder": {"question": q}, "ranker": {"query": q},
+                      "answer_builder": {"query": q}})
+            predicted_answers.append(response["answer_builder"]["answers"][0].data)
+            retrieved_contexts.append([d.content for d in response["answer_builder"]["answers"][0].documents])
+        except BadRequestError as e:
+            print(f"Error with question: {q}")
+            print(e)
+            predicted_answers.append("error")
+            retrieved_contexts.append(retrieved_contexts)
+    results, inputs = run_evaluation(questions, answers, retrieved_contexts, predicted_answers, embedding_model)
 
 def main():
     base_path = "data/ARAGOG/"
@@ -245,7 +257,7 @@ def main():
     maximum_marginal_relevance_reranking(answers, doc_store, embedding_model, questions)
 
     # Document Summarisation
-    doc_summary_indexing(embedding_model, base_path, doc_store)
+    doc_summary_indexing(embedding_model, base_path, questions, answers)
 
 if __name__ == "__main__":
     main()
