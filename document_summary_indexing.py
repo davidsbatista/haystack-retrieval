@@ -3,8 +3,10 @@ from pathlib import Path
 from typing import List
 
 from haystack import Pipeline, component, Document
+from haystack.components.builders import PromptBuilder, AnswerBuilder
 from haystack.components.converters import PyPDFToDocument, OutputAdapter
 from haystack.components.embedders import SentenceTransformersDocumentEmbedder, SentenceTransformersTextEmbedder
+from haystack.components.generators import OpenAIGenerator
 from haystack.components.preprocessors import DocumentCleaner, DocumentSplitter
 from haystack.components.retrievers import InMemoryEmbeddingRetriever
 from haystack.components.writers import DocumentWriter
@@ -89,7 +91,7 @@ def indexing_doc_summarisation(embedding_model: str, base_path: str, chunk_size 
     indexing.connect("chunk_embedder", "chunk_writer")
 
     pdf_files = [files_path / f_name for f_name in os.listdir(files_path)]
-    indexing.run({"converter": {"sources": pdf_files[0:5]}})
+    indexing.run({"converter": {"sources": pdf_files}})
 
     return summaries_doc_store, chunk_doc_store
 
@@ -116,15 +118,37 @@ def doc_summarisation_query_pipeline(chunk_doc_store, summaries_doc_store, embed
         custom_filters={'converter': lambda docs: [doc.id for doc in docs]}
     )
 
+    template = """
+    You have to answer the following question based on the given context information only.
+    If the context is empty or just a '\\n' answer with None, example: "None".
+
+    Context:
+    {% for document in documents %}
+        {{ document.content }}
+    {% endfor %}
+
+    Question: {{question}}
+    Answer:
+    """
+
     doc_summary_query = Pipeline()
     doc_summary_query.add_component("text_embedder", text_embedder)
     doc_summary_query.add_component("summary_retriever", summary_embedding_retriever)
     doc_summary_query.add_component("chunk_embedding_retriever", chunk_embedding_retriever)
     doc_summary_query.add_component("output_adapter", output_adapter)
+    doc_summary_query.add_component("prompt_builder", PromptBuilder(template=template))
+    doc_summary_query.add_component("llm", OpenAIGenerator())
+    doc_summary_query.add_component("answer_builder", AnswerBuilder())
 
     doc_summary_query.connect("text_embedder", "summary_retriever")
     doc_summary_query.connect("summary_retriever", "output_adapter")
     doc_summary_query.connect("text_embedder", "chunk_embedding_retriever.query_embedding")
     doc_summary_query.connect("output_adapter.output", "chunk_embedding_retriever.doc_ids")
 
-    doc_summary_query.run(data={"text_embedder": {"text": "What was BERT trained for?"}}, include_outputs_from={"output_adapter", "summary_retriever", "chunk_embedding_retriever"})
+    doc_summary_query.connect("chunk_embedding_retriever.chunks", "prompt_builder.documents")
+    doc_summary_query.connect("prompt_builder", "llm")
+    doc_summary_query.connect("llm.replies", "answer_builder.replies")
+    doc_summary_query.connect("llm.meta", "answer_builder.meta")
+
+
+    return doc_summary_query
