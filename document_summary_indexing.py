@@ -53,14 +53,13 @@ def indexing_doc_summarisation(embedding_model: str, base_path: str) -> InMemory
 
 def doc_summarisation_query_pipeline(chunk_doc_store, summary_doc_store, embedding_model):
     """
+    Two levels of retrieval:
 
-    Document-Level Retrieval: uses the summary index to identify the top-k most relevant to the query and document summaries.
-    (This approach efficiently narrows the search space by retrieving only the most pertinent document IDs)
+    Document-Level Retrieval:
+        uses the summary index to identify the top-k most relevant to the query and document summaries.
 
-    Chunk-Level Retrieval: Once the relevant documents are identified, use the document IDs from step 1.
-    For each document, the most relevant chunks to the query are retrieved.
-
-    :return:
-
+    Chunk-Level Retrieval:
+        Once the relevant documents are identified, use the document IDs from the previous step. For each document, the
+        most relevant chunks to the query are retrieved.
     """
     pass

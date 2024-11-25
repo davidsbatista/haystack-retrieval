@@ -11,5 +11,4 @@
 
 - [X] Hypothetical Document Embeddings - HyDE
 - [X] Multi-Query 
-- [ ] Document Summary Indexing - need to be implemented
-- [ ] Contextual Retrieval - need to be implemented
+- [X] Document Summary Indexing
