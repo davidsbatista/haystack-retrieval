@@ -16,12 +16,12 @@ from openai import BadRequestError
 from tqdm import tqdm
 
 from auto_merging_retriever import auto_merging_retrieval, hierarchical_indexing
+from document_summary_indexing import indexing_doc_summarisation, doc_summarisation_query_pipeline
 from hybrid_search import hybrid_search
 from hyde import rag_with_hyde
+from maximal_marginal_relevance import mmr
 from multi_query import multi_query_pipeline
 from sentence_window_retrieval import rag_sentence_window_retrieval
-from maximal_marginal_relevance import mmr
-from document_summary_indexing import indexing_doc_summarisation, doc_summarisation_query_pipeline
 
 
 def read_question_answers(base_path: str) -> Tuple[List[str], List[str]]:
