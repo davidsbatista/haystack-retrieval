@@ -95,7 +95,7 @@ def indexing_doc_summarisation(embedding_model: str, base_path: str, chunk_size 
 
     return summaries_doc_store, chunk_doc_store
 
-def doc_summarisation_query_pipeline(chunk_doc_store, summaries_doc_store, embedding_model):
+def doc_summarisation_query_pipeline(chunk_doc_store, summaries_doc_store, embedding_model, top_k):
     """
     Two levels of retrieval:
 
@@ -108,7 +108,7 @@ def doc_summarisation_query_pipeline(chunk_doc_store, summaries_doc_store, embed
     """
 
     text_embedder = SentenceTransformersTextEmbedder(model=embedding_model)
-    summary_embedding_retriever = InMemoryEmbeddingRetriever(summaries_doc_store, top_k=2)
+    summary_embedding_retriever = InMemoryEmbeddingRetriever(summaries_doc_store, top_k=top_k)
     chunk_embedding_retriever = ChunksRetriever(chunk_doc_store)
 
     # This is equivalent to : List[Document] -> lambda docs: [doc.id for doc in docs] -> List[str]
@@ -149,6 +149,5 @@ def doc_summarisation_query_pipeline(chunk_doc_store, summaries_doc_store, embed
     doc_summary_query.connect("prompt_builder", "llm")
     doc_summary_query.connect("llm.replies", "answer_builder.replies")
     doc_summary_query.connect("llm.meta", "answer_builder.meta")
-
 
     return doc_summary_query

@@ -37,7 +37,7 @@ relevance in retrieval and summarization, hence we label our method “maximal m
 
 Paper: https://www.cs.cmu.edu/~jgc/publication/The_Use_MMR_Diversity_Based_LTMIR_1998.pdf
 
-### Hybrid Retrieval
+### Hybrid Search Retrieval
 
 Vector search which captures the semantic meaning of the query and keyword search which identifies exact matches 
 for specific terms. Hybrid search combines the strengths of vector search and keyword search to enhance retrieval accuracy. 
@@ -52,14 +52,6 @@ These search, vector and keyword, methods run in parallel, and the results are t
 weighted system. For instance, using Weaviate, you can adjust the alpha parameter to balance the importance of vector 
 versus keyword search results, creating a combined, ranked list of documents. This balances precision and recall, 
 improving overall retrieval quality but requires careful tuning of weighting parameters.
-
-### Reciprocal Rank fusion
-
-Aims at combining the results of multiple retrieval systems to improve the overall performance.
-
-https://plg.uwaterloo.ca/~gvcormac/cormacksigir09-rrf.pdf
-
-https://carbon.ai/blog/reciprocal-rank-fusion
 
 ## LLMs-based Retrieval Techniques
 
@@ -127,13 +119,12 @@ The following table shows the semantic similarity of the answers retrieved by th
 | Technique                                 | Semantic Answer Similarity |
 |-------------------------------------------|----------------------------|
 | Sentence-Window Retrieval                 | 0.700                      |
-| Auto-Merging Retrieval                    | 0.190                      |
+| Auto-Merging Retrieval                    | 0.505                      |
 | Baseline RAG + Maximum Marginal Relevance | 0.670                      |
-| Hybrid Retrieval                          |                            |
-| Reciprocal Rank Fusion                    |                            |
+| Hybrid Search                             |                            |
 | Multi-Query                               | 0.620                      |
 | Hypothetical Document Embeddings - HyDE   | 0.693                      |
-| Document Summary Index                    |                            |
+| Document Summary Index                    | 0.731                      |
 
 
 ### Dataset

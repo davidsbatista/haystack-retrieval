@@ -49,7 +49,7 @@ def mmr(document_store, embedding_model: str, top_k):
 
     return mmr_pipeline
 
-def sentence_window_retrieval(doc_store, embedding_model, top_k):
+def sentence_window(doc_store, embedding_model, top_k):
     template = """
         You have to answer the following question based on the given context information only.
         If the context is empty or just a '\n' answer with None, example: "None".
@@ -150,7 +150,7 @@ def hierarchical_indexing(documents: List[Document], embedding_model: str) -> Tu
 
     return leaf_doc_store, parent_doc_store
 
-def auto_merging_retrieval(leaf_doc_store, parent_doc_store, embedding_model, top_k=1):
+def auto_merging(leaf_doc_store, parent_doc_store, embedding_model, top_k):
     template = """
         You have to answer the following question based on the given context information only.
         If the context is empty or just a '\n' answer with None, example: "None".
