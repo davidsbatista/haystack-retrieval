@@ -1,54 +1,23 @@
-import json
 import os
 from pathlib import Path
-from typing import List, Tuple
+from typing import List
 
 from haystack import Pipeline, Document
 from haystack.components.converters import PyPDFToDocument
-from haystack.components.embedders import SentenceTransformersDocumentEmbedder
 from haystack.components.evaluators import SASEvaluator
-from haystack.components.preprocessors import DocumentCleaner, DocumentSplitter
-from haystack.components.writers import DocumentWriter
-from haystack.document_stores.in_memory import InMemoryDocumentStore
-from haystack.document_stores.types import DuplicatePolicy
+from haystack.components.preprocessors import DocumentCleaner
 from haystack.evaluation import EvaluationRunResult
 from openai import BadRequestError
 from tqdm import tqdm
 
-from auto_merging_retriever import auto_merging_retrieval, hierarchical_indexing
-from document_summary_indexing import indexing_doc_summarisation, doc_summarisation_query_pipeline
-from hybrid_search import hybrid_search
-from hyde import rag_with_hyde
-from maximal_marginal_relevance import mmr
-from multi_query import multi_query_pipeline
-from sentence_window_retrieval import rag_sentence_window_retrieval
+from techniques.auto_merging_retriever import auto_merging_retrieval, hierarchical_indexing
+from techniques.classic import mmr, sentence_window_retrieval
+from techniques.document_summary_indexing import indexing_doc_summarisation, doc_summarisation_query_pipeline
+from techniques.hybrid_search import hybrid_search
+from techniques.llm import rag_with_hyde
+from techniques.multi_query import multi_query_pipeline
+from techniques.utils import read_question_answers, indexing
 
-
-def read_question_answers(base_path: str) -> Tuple[List[str], List[str]]:
-    with open(base_path + "eval_questions.json", "r") as f:
-        data = json.load(f)
-        questions = data["questions"]
-        answers = data["ground_truths"]
-    return questions, answers
-
-def indexing(embedding_model: str, chunk_size: int, base_path: str) -> InMemoryDocumentStore:
-    full_path = Path(base_path)
-    files_path = full_path / "papers_for_questions"
-    document_store = InMemoryDocumentStore()
-    pipeline = Pipeline()
-    pipeline.add_component("converter", PyPDFToDocument())
-    pipeline.add_component("cleaner", DocumentCleaner())
-    pipeline.add_component("splitter", DocumentSplitter(split_length=chunk_size, split_overlap=0, split_by="sentence"))
-    pipeline.add_component("writer", DocumentWriter(document_store=document_store, policy=DuplicatePolicy.SKIP))
-    pipeline.add_component("embedder", SentenceTransformersDocumentEmbedder(embedding_model))
-    pipeline.connect("converter", "cleaner")
-    pipeline.connect("cleaner", "splitter")
-    pipeline.connect("splitter", "embedder")
-    pipeline.connect("embedder", "writer")
-    pdf_files = [full_path / "papers_for_questions" / f_name for f_name in os.listdir(files_path)]
-    pipeline.run({"converter": {"sources": pdf_files}})
-
-    return document_store
 
 def transform_pdf_to_documents(base_path: str) -> List[Document]:
     full_path = Path(base_path)
@@ -103,10 +72,20 @@ def multi_query_eval(answers, doc_store, embedding_model, questions):
     multi_query_pip = multi_query_pipeline(doc_store, embedding_model)
     predicted_answers = []
     retrieved_contexts = []
+
+    n_variations = 3
+    top_k = 3
+
     for q in tqdm(questions):
         try:
             response = multi_query_pip.run(
-                data={"multi_query_generator": {"query": q}, "ranker": {"query": q}, "answer_builder": {"query": q}})
+                data={
+                    'multi_query_generator': {'query': q, 'n_variations': n_variations},
+                    'multi_query_handler': {'top_k': top_k},
+                    'prompt_builder': {'template_variables': {'question': q}},
+                    'answer_builder': {'query': q}
+                }
+            )
             predicted_answers.append(response["answer_builder"]["answers"][0].data)
             retrieved_contexts.append([d.content for d in response["answer_builder"]["answers"][0].documents])
         except BadRequestError as e:
@@ -163,8 +142,8 @@ def auto_merging_eval(answers, base_path, embedding_model, questions, top_k):
     eval_results_auto_merging = EvaluationRunResult(run_name="auto-merging-retrieval", inputs=inputs, results=results)
     eval_results_auto_merging.score_report()
 
-def hyde_eval(answers, doc_store, embedding_model, questions, top_k):
-    rag_hyde = rag_with_hyde(doc_store, embedding_model, top_k)
+def hyde_eval(answers, doc_store, embedding_model, questions, nr_completions, top_k):
+    rag_hyde = rag_with_hyde(doc_store, embedding_model, nr_completions, top_k)
     predicted_answers = []
     retrieved_contexts = []
     for q in tqdm(questions):
@@ -181,9 +160,10 @@ def hyde_eval(answers, doc_store, embedding_model, questions, top_k):
             retrieved_contexts.append(retrieved_contexts)
     results, inputs = run_evaluation(questions, answers, retrieved_contexts, predicted_answers, embedding_model)
     eval_results_hyde = EvaluationRunResult(run_name="hyde", inputs=inputs, results=results)
+    print(eval_results_hyde.score_report())
 
 def sentence_window_eval(answers, doc_store, embedding_model, questions, top_k):
-    rag_window_retrieval = rag_sentence_window_retrieval(doc_store, embedding_model, top_k)
+    rag_window_retrieval = sentence_window_retrieval(doc_store, embedding_model, top_k)
     retrieved_contexts, predicted_answers = run_rag(rag_window_retrieval, questions)
     results, inputs = run_evaluation(questions, answers, retrieved_contexts, predicted_answers, embedding_model)
     eval_results_rag_window = EvaluationRunResult(run_name="window-retrieval", inputs=inputs, results=results)
@@ -238,30 +218,21 @@ def main():
     embedding_model = "sentence-transformers/all-MiniLM-L6-v2"
     chunk_size = 15
     top_k = 3
+    hyde_n_completions = 3
 
     questions, answers = read_question_answers(base_path)
     print("Indexing documents...")
     doc_store = indexing(embedding_model, chunk_size, base_path)
 
-    # SentenceWindow retrieval RAG
+    # classical Techniques
     sentence_window_eval(answers, doc_store, embedding_model, questions, top_k)
-
-    # Hypothetical Document Embedder - HyDE
-    hyde_eval(answers, doc_store, embedding_model, questions, top_k)
-
-    # Auto-merging retrieval RAG
     auto_merging_eval(answers, base_path, embedding_model, questions, top_k)
-
-    # Hybrid Search and Reciprocal Rank Fusion
+    maximum_marginal_relevance_reranking(answers, doc_store, embedding_model, questions)
     hybrid_search_eval(answers, doc_store, embedding_model, questions)
 
-    # Multi-query
+    # LLM-based Techniques
+    hyde_eval(answers, doc_store, embedding_model, questions, hyde_n_completions, top_k)
     multi_query_eval(answers, doc_store, embedding_model, questions)
-
-    # Maximal Marginal Relevance
-    maximum_marginal_relevance_reranking(answers, doc_store, embedding_model, questions)
-
-    # Document Summarisation
     doc_summary_indexing(embedding_model, base_path, questions, answers)
 
 if __name__ == "__main__":

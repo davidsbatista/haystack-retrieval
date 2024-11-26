@@ -12,7 +12,7 @@ from haystack_experimental.components.splitters import HierarchicalDocumentSplit
 
 
 def hierarchical_indexing(documents: List[Document], embedding_model: str) -> Tuple[InMemoryDocumentStore, InMemoryDocumentStore]:
-    splitter = HierarchicalDocumentSplitter(block_sizes={20, 10, 5}, split_overlap=0, split_by="sentence")
+    splitter = HierarchicalDocumentSplitter(block_sizes={10, 5}, split_overlap=0, split_by="sentence")
     docs = splitter.run(documents)
 
     embedder = SentenceTransformersDocumentEmbedder(model=embedding_model, progress_bar=True)

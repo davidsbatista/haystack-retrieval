@@ -13,7 +13,7 @@ from haystack.components.writers import DocumentWriter
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.document_stores.types import DuplicatePolicy
 
-from openai_summarisation import summarize
+from techniques.openai_summarisation import summarize
 
 
 @component
