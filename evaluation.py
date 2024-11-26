@@ -29,7 +29,7 @@ def sentence_window_eval(answers, doc_store, embedding_model, questions, top_k):
 
     results, inputs = run_evaluation(questions, answers, retrieved_contexts, predicted_answers, embedding_model)
     eval_results_rag_window = EvaluationRunResult(run_name="window-retrieval", inputs=inputs, results=results)
-    eval_results_rag_window.score_report()
+    print(eval_results_rag_window.score_report())
 
 def auto_merging_eval(answers, base_path, embedding_model, questions, top_k):
     pdf_documents = transform_pdf_to_documents(base_path)
@@ -71,20 +71,17 @@ def maximum_marginal_relevance_reranking(answers, doc_store, embedding_model, qu
             retrieved_contexts.append(retrieved_contexts)
     results, inputs = run_evaluation(questions, answers, retrieved_contexts, predicted_answers, embedding_model)
     eval_results_mmr = EvaluationRunResult(run_name="mmr", inputs=inputs, results=results)
-    eval_results_mmr.score_report()
+    print(eval_results_mmr.score_report())
 
-def hybrid_search_eval(answers, doc_store, embedding_model, questions):
-    # NOTE: it needs a cross-encoder to work, takes pairs of sentences as input and produces a similarity score
-    hybrid = hybrid_search(doc_store, embedding_model)
+def hybrid_search_eval(answers, doc_store, embedding_model, questions, top_k):
+    hybrid = hybrid_search(doc_store, embedding_model, top_k)
     predicted_answers = []
     retrieved_contexts = []
     for q in tqdm(questions):
         try:
             response = hybrid.run(
-                data={"text_embedder": {"text": q}, "bm25_retriever": {"query": q}, "ranker": {"query": q},
-                      "answer_builder": {"query": q}}
+                data={"text_embedder": {"text": q}, "bm25_retriever": {"query": q}, "answer_builder": {"query": q}}
             )
-            # response['ranker']['documents']
             predicted_answers.append(response["answer_builder"]["answers"][0].data)
             retrieved_contexts.append([d.content for d in response["answer_builder"]["answers"][0].documents])
         except BadRequestError as e:
@@ -94,7 +91,7 @@ def hybrid_search_eval(answers, doc_store, embedding_model, questions):
             retrieved_contexts.append(retrieved_contexts)
     results, inputs = run_evaluation(questions, answers, retrieved_contexts, predicted_answers, embedding_model)
     eval_results_hybrid = EvaluationRunResult(run_name="hybrid-retrieval", inputs=inputs, results=results)
-    eval_results_hybrid.score_report()
+    print(eval_results_hybrid.score_report())
 
 def multi_query_eval(answers, doc_store, embedding_model, questions, n_variations, top_k):
     multi_query_pip = multi_query_pipeline(doc_store, embedding_model)
@@ -119,7 +116,7 @@ def multi_query_eval(answers, doc_store, embedding_model, questions, n_variation
             retrieved_contexts.append(retrieved_contexts)
     results, inputs = run_evaluation(questions, answers, retrieved_contexts, predicted_answers, embedding_model)
     eval_results_multi_query = EvaluationRunResult(run_name="multi-query", inputs=inputs, results=results)
-    eval_results_multi_query.score_report()
+    print(eval_results_multi_query.score_report())
 
 def hyde_eval(answers, doc_store, embedding_model, questions, nr_completions, top_k):
     rag_hyde = rag_with_hyde(doc_store, embedding_model, nr_completions, top_k)
@@ -185,7 +182,7 @@ def main():
     sentence_window_eval(answers, doc_store, embedding_model, questions, top_k)
     auto_merging_eval(answers, base_path, embedding_model, questions, top_k)
     maximum_marginal_relevance_reranking(answers, doc_store, embedding_model, questions, top_k)
-    hybrid_search_eval(answers, doc_store, embedding_model, questions)
+    hybrid_search_eval(answers, doc_store, embedding_model, questions, top_k)
 
     # LLM-based techniques
     hyde_eval(answers, doc_store, embedding_model, questions, hyde_n_completions, top_k)
