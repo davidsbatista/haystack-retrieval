@@ -4,9 +4,10 @@ from pathlib import Path
 from typing import List
 from typing import Tuple
 
-from haystack import Pipeline
+from haystack import Pipeline, Document
 from haystack.components.converters import PyPDFToDocument
 from haystack.components.embedders import SentenceTransformersDocumentEmbedder
+from haystack.components.evaluators import SASEvaluator
 from haystack.components.preprocessors import DocumentCleaner, DocumentSplitter
 from haystack.components.writers import DocumentWriter
 from haystack.document_stores.in_memory import InMemoryDocumentStore
@@ -20,6 +21,36 @@ def read_question_answers(base_path: str) -> Tuple[List[str], List[str]]:
         answers = data["ground_truths"]
     return questions, answers
 
+def transform_pdf_to_documents(base_path: str) -> List[Document]:
+    full_path = Path(base_path)
+    files_path = full_path / "papers_for_questions"
+    pipeline = Pipeline()
+    pipeline.add_component("converter", PyPDFToDocument())
+    pipeline.add_component("cleaner", DocumentCleaner())
+    pipeline.connect("converter", "cleaner")
+    pdf_files = [full_path / "papers_for_questions" / f_name for f_name in os.listdir(files_path)]
+    pdf_documents = pipeline.run({"converter": {"sources": pdf_files}})
+
+    return pdf_documents['cleaner']['documents']
+
+def run_evaluation(sample_questions, sample_answers, retrieved_contexts, predicted_answers, embedding_model):
+    eval_pipeline = Pipeline()
+    # eval_pipeline.add_component("context_relevance", ContextRelevanceEvaluator(raise_on_failure=False))
+    # eval_pipeline.add_component("faithfulness", FaithfulnessEvaluator(raise_on_failure=False))
+    eval_pipeline.add_component("sas", SASEvaluator(model=embedding_model))
+
+    eval_pipeline_results = eval_pipeline.run(
+        {"sas": {"predicted_answers": predicted_answers, "ground_truth_answers": sample_answers}}
+    )
+    results = {"sas": eval_pipeline_results["sas"]}
+    inputs = {
+        "questions": sample_questions,
+        "contexts": retrieved_contexts,
+        "true_answers": sample_answers,
+        "predicted_answers": predicted_answers,
+    }
+
+    return results, inputs
 
 def indexing(embedding_model: str, chunk_size: int, base_path: str) -> InMemoryDocumentStore:
     full_path = Path(base_path)

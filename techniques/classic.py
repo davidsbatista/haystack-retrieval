@@ -1,9 +1,17 @@
-from haystack import Pipeline
-from haystack.components.builders import PromptBuilder, AnswerBuilder
+from typing import Tuple, List
+
+from haystack import Pipeline, Document
+from haystack.components.builders import AnswerBuilder, PromptBuilder
+from haystack.components.embedders import SentenceTransformersTextEmbedder, SentenceTransformersDocumentEmbedder
 from haystack.components.generators import OpenAIGenerator
-from haystack.components.rankers import SentenceTransformersDiversityRanker
-from haystack.components.retrievers.in_memory import InMemoryEmbeddingRetriever
-from haystack.components.embedders import SentenceTransformersTextEmbedder
+from haystack.components.joiners import DocumentJoiner
+from haystack.components.rankers import SentenceTransformersDiversityRanker, TransformersSimilarityRanker
+from haystack.components.retrievers import InMemoryEmbeddingRetriever
+from haystack.components.retrievers import SentenceWindowRetriever, InMemoryBM25Retriever
+from haystack.document_stores.in_memory import InMemoryDocumentStore
+from haystack.document_stores.types import DuplicatePolicy
+from haystack_experimental.components.retrievers import AutoMergingRetriever
+from haystack_experimental.components.splitters import HierarchicalDocumentSplitter
 
 
 def mmr(document_store, embedding_model: str, top_k):
@@ -41,13 +49,6 @@ def mmr(document_store, embedding_model: str, top_k):
 
     return mmr_pipeline
 
-from haystack import Pipeline
-from haystack.components.builders import AnswerBuilder, PromptBuilder
-from haystack.components.embedders import SentenceTransformersTextEmbedder
-from haystack.components.generators import OpenAIGenerator
-from haystack.components.retrievers import InMemoryEmbeddingRetriever, SentenceWindowRetriever
-
-
 def sentence_window_retrieval(doc_store, embedding_model, top_k):
     template = """
         You have to answer the following question based on the given context information only.
@@ -75,6 +76,107 @@ def sentence_window_retrieval(doc_store, embedding_model, top_k):
     basic_rag.connect("query_embedder", "retriever.query_embedding")
     basic_rag.connect("retriever", "sentence_window_retriever")
     basic_rag.connect("sentence_window_retriever.context_windows", "prompt_builder.documents")
+    basic_rag.connect("prompt_builder", "llm")
+    basic_rag.connect("llm.replies", "answer_builder.replies")
+    basic_rag.connect("llm.meta", "answer_builder.meta")
+
+    # to see the retrieved documents in the answer
+    basic_rag.connect("retriever", "answer_builder.documents")
+
+    return basic_rag
+
+def hybrid_search(document_store, embedding_model: str):
+    text_embedder = SentenceTransformersTextEmbedder(model="BAAI/bge-small-en-v1.5")
+    embedding_retriever = InMemoryEmbeddingRetriever(document_store)
+    bm25_retriever = InMemoryBM25Retriever(document_store)
+    document_joiner = DocumentJoiner()
+    ranker = TransformersSimilarityRanker()
+
+    template = """
+    You have to answer the following question based on the given context information only.
+    If the context is empty or just a '\n' answer with None, example: "None".
+
+    Context:
+    {% for document in documents %}
+        {{ document.content }}
+    {% endfor %}
+
+    Question: {{question}}
+    Answer:
+    """
+
+    hybrid_retrieval = Pipeline()
+    hybrid_retrieval.add_component("text_embedder", text_embedder)
+    hybrid_retrieval.add_component("embedding_retriever", embedding_retriever)
+    hybrid_retrieval.add_component("bm25_retriever", bm25_retriever)
+    hybrid_retrieval.add_component("document_joiner", document_joiner)
+    hybrid_retrieval.add_component("ranker", ranker)
+
+    hybrid_retrieval.add_component("prompt_builder", PromptBuilder(template=template))
+    hybrid_retrieval.add_component("llm", OpenAIGenerator())
+    hybrid_retrieval.add_component("answer_builder", AnswerBuilder())
+
+    hybrid_retrieval.connect("text_embedder", "embedding_retriever")
+    hybrid_retrieval.connect("bm25_retriever", "document_joiner")
+    hybrid_retrieval.connect("embedding_retriever", "document_joiner")
+    hybrid_retrieval.connect("document_joiner", "ranker")
+    hybrid_retrieval.connect("ranker.documents", "prompt_builder.documents")
+    hybrid_retrieval.connect("prompt_builder", "llm")
+    hybrid_retrieval.connect("llm.replies", "answer_builder.replies")
+    hybrid_retrieval.connect("llm.meta", "answer_builder.meta")
+
+    return hybrid_retrieval
+
+def hierarchical_indexing(documents: List[Document], embedding_model: str) -> Tuple[InMemoryDocumentStore, InMemoryDocumentStore]:
+    splitter = HierarchicalDocumentSplitter(block_sizes={10, 5}, split_overlap=0, split_by="sentence")
+    docs = splitter.run(documents)
+
+    embedder = SentenceTransformersDocumentEmbedder(model=embedding_model, progress_bar=True)
+    embedder.warm_up()
+
+    # Store the leaf documents in one document store
+    leaf_documents = [doc for doc in docs["documents"] if doc.meta["__level"] == 1]
+    print(f"Leaf documents: {len(leaf_documents)}")
+    leaf_doc_store = InMemoryDocumentStore()
+    embedded_leaf_docs = embedder.run(leaf_documents)
+    leaf_doc_store.write_documents(embedded_leaf_docs["documents"], policy=DuplicatePolicy.OVERWRITE)
+
+    # Store the parent documents in another document store
+    parent_documents = [doc for doc in docs["documents"] if doc.meta["__level"] == 0]
+    print(f"Parent documents: {len(parent_documents)}")
+    parent_doc_store = InMemoryDocumentStore()
+    embedded_parent_docs = embedder.run(parent_documents)
+    parent_doc_store.write_documents(embedded_parent_docs["documents"], policy=DuplicatePolicy.OVERWRITE)
+
+    return leaf_doc_store, parent_doc_store
+
+def auto_merging_retrieval(leaf_doc_store, parent_doc_store, embedding_model, top_k=1):
+    template = """
+        You have to answer the following question based on the given context information only.
+        If the context is empty or just a '\n' answer with None, example: "None".
+
+        Context:
+        {% for document in documents %}
+            {{ document.content }}
+        {% endfor %}
+
+        Question: {{question}}
+        Answer:
+        """
+
+    basic_rag = Pipeline()
+    basic_rag.add_component(
+        "query_embedder", SentenceTransformersTextEmbedder(model=embedding_model, progress_bar=False)
+    )
+    basic_rag.add_component("retriever", InMemoryEmbeddingRetriever(leaf_doc_store, top_k=top_k))
+    basic_rag.add_component("auto_merging_retriever", AutoMergingRetriever(document_store=parent_doc_store))
+    basic_rag.add_component("prompt_builder", PromptBuilder(template=template))
+    basic_rag.add_component("llm", OpenAIGenerator())
+    basic_rag.add_component("answer_builder", AnswerBuilder())
+
+    basic_rag.connect("query_embedder", "retriever.query_embedding")
+    basic_rag.connect("retriever", "auto_merging_retriever")
+    basic_rag.connect("auto_merging_retriever.documents", "prompt_builder.documents")
     basic_rag.connect("prompt_builder", "llm")
     basic_rag.connect("llm.replies", "answer_builder.replies")
     basic_rag.connect("llm.meta", "answer_builder.meta")

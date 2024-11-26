@@ -5,7 +5,6 @@ from haystack.components.builders import PromptBuilder, AnswerBuilder
 from haystack.components.embedders import SentenceTransformersTextEmbedder
 from haystack.components.generators import OpenAIGenerator
 from haystack.components.joiners import DocumentJoiner
-from haystack.components.rankers import TransformersSimilarityRanker
 from haystack.components.retrievers import InMemoryEmbeddingRetriever
 
 

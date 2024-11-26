@@ -127,11 +127,11 @@ The following table shows the semantic similarity of the answers retrieved by th
 | Technique                                 | Semantic Answer Similarity |
 |-------------------------------------------|----------------------------|
 | Sentence-Window Retrieval                 | 0.700                      |
-| Auto-Merging Retrieval                    |                            |
+| Auto-Merging Retrieval                    | 0.190                      |
 | Baseline RAG + Maximum Marginal Relevance | 0.670                      |
 | Hybrid Retrieval                          |                            |
-| Reciprocal Rank fusion                    |                            |
-| Multi-query                               | 0.620                      |
+| Reciprocal Rank Fusion                    |                            |
+| Multi-Query                               | 0.620                      |
 | Hypothetical Document Embeddings - HyDE   | 0.693                      |
 | Document Summary Index                    |                            |
 
