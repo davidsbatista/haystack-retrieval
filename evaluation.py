@@ -80,7 +80,8 @@ def hybrid_search_eval(answers, doc_store, embedding_model, questions, top_k):
     for q in tqdm(questions):
         try:
             response = hybrid.run(
-                data={"text_embedder": {"text": q}, "bm25_retriever": {"query": q}, "answer_builder": {"query": q}}
+                data={"text_embedder": {"text": q}, "bm25_retriever": {"query": q}, "prompt_builder": {"question": q},
+                      "answer_builder": {"query": q}}
             )
             predicted_answers.append(response["answer_builder"]["answers"][0].data)
             retrieved_contexts.append([d.content for d in response["answer_builder"]["answers"][0].documents])

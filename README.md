@@ -121,7 +121,7 @@ The following table shows the semantic similarity of the answers retrieved by th
 | Sentence-Window Retrieval                 | 0.700                      |
 | Auto-Merging Retrieval                    | 0.505                      |
 | Baseline RAG + Maximum Marginal Relevance | 0.670                      |
-| Hybrid Search                             |                            |
+| Hybrid Search                             | 0.699                      |
 | Multi-Query                               | 0.620                      |
 | Hypothetical Document Embeddings - HyDE   | 0.693                      |
 | Document Summary Index                    | 0.731                      |
