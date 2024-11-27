@@ -15,8 +15,8 @@
 
 ## Experimental Results
 
-The following table shows the semantic similarity of the answers retrieved by the different techniques over the ARAGOG 
-dataset. The results are obtained by comparing the retrieved answers with the ground truth answers using the Semantic
+The following table shows the semantic similarity of the answers retrieved by the different techniques over the [ARAGOG 
+dataset](https://github.com/predlico/ARAGOG). The results are obtained by comparing the retrieved answers with the ground truth answers using the Semantic
 Similarity metric.
 
 | Technique                                 | Semantic Answer Similarity |
