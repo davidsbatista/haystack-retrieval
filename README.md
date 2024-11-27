@@ -1,5 +1,6 @@
 # Retrieving with Haystack 2.x
 
+
 ## Classical Retrieval Techniques
 
 ### Sentence-Window Retrieval
@@ -52,6 +53,7 @@ These search, vector and keyword, methods run in parallel, and the results are t
 weighted system. For instance, using Weaviate, you can adjust the alpha parameter to balance the importance of vector 
 versus keyword search results, creating a combined, ranked list of documents. This balances precision and recall, 
 improving overall retrieval quality but requires careful tuning of weighting parameters.
+
 
 ## LLMs-based Retrieval Techniques
 
@@ -114,7 +116,14 @@ https://www.llamaindex.ai/blog/a-new-document-summary-index-for-llm-powered-qa-s
 
 ## Results
 
-The following table shows the semantic similarity of the answers retrieved by the different techniques.
+The following table shows the semantic similarity of the answers retrieved by the different techniques over the ARAGOG 
+dataset. General parameters' configuration:
+
+  - embedding_model = "sentence-transformers/all-MiniLM-L6-v2"
+  - chunk_size = 15
+  - split_by = "sentence"
+  - top_k = 3
+
 
 | Technique                                 | Semantic Answer Similarity |
 |-------------------------------------------|----------------------------|
@@ -125,29 +134,3 @@ The following table shows the semantic similarity of the answers retrieved by th
 | Multi-Query                               | 0.620                      |
 | Hypothetical Document Embeddings - HyDE   | 0.693                      |
 | Document Summary Index                    | 0.731                      |
-
-
-### Dataset
-  - ARAGOG dataset
-
-### Parameters
-  - embedding_model = "sentence-transformers/all-MiniLM-L6-v2"
-  - chunk_size = 15
-  - split_by = "sentence"
-  - top_k = 3
-
-### Sentence-Window-Retrieval
-  - window_size= 3
-  - top_k = 3
-
-### Multi-query
-  - top_k = 3
-  - n_variations = 3
-
-### Baseline RAG + Maximum Marginal Relevance
-  - top_k = 3
-  - lambda_threshold = 0.5
-
-### Hypothetical Document Embeddings - HyDE
-  - top_k = 3
-  - nr_completions = 5
