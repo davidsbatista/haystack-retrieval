@@ -1,19 +1,58 @@
 # Retrieving with Haystack 2.x
 
-## Classical Retrieval Techniques
+This repository contains showcases different retrieval techniques within the context of a RAG-based QA system. 
 
-- __Sentence-Window Retrieval__ uses a sliding window to split the document into chunks and retrieve the most relevant
-- __Auto-Merging Retrieval__ retrieves the most relevant chunks of a document and merges them into a single
-- __Maximum Marginal Relevance__ ranks documents by selecting first those relevant to the query and dissimilar to the already retrieved. [[1](#1)]
-- __Hybrid Search Retrieval__ combines multiple retrieval strategies.
+The retrieval techniques are implemented using the [Haystack 2.x](https://github,com/deepset-ai/haystack) library and 
+evaluated using the [ARAGOG dataset](https://github.com/predlico/ARAGOG) with the Semantic Similarity metric.
 
-## LLMs-based Retrieval Techniques
+## Sentence Window Retrieval
 
-- __Multi-query__ retrieves documents based on multiple queries generated from the original query.
-- __Hypothetical Document Embeddings - HyDE__ enhances retrieval by creating and using “fake” hypothetical document based on a query to find similar documents. [[2](#2)] 
-- __Document Summary Index__ leverages document summaries for retrieval and uses full text documents for response generation. [[3](#3)]
+<img src="images/sentence_window_retrieval.png" width="75%">
 
-## Experimental Results
+The Sentence Window Retrieval technique uses a sliding window to split the document into chunks and retrieve the most relevant.
+
+## Auto-Merging Retrieval
+
+<img src="images/auto_merging_retrieval.png" width="75%">
+
+Auto-Merging Retrieval retrieves the most relevant chunks of a document and merges them into a single
+
+## Maximum Marginal Relevance
+
+<img src="images/maximum_marginal_relevance.png" width="75%">
+
+Maximum Marginal Relevance ranks documents by selecting first those relevant to the query and dissimilar to the already retrieved. [[1](#1)]
+
+## Hybrid Search Retrieval
+
+<img src="images/hybird_search.png" width="75%">
+
+Hybrid Search Retrieval combines multiple retrieval strategies.
+
+## Multi-Query
+ 
+
+<img src="images/multi_query.png" width="75%">
+
+Multi-query retrieves documents based on multiple queries generated from the original query.
+
+## Hypothetical Document Embeddings - HyDE
+
+<img src="images/hyde.png" width="75%">
+
+Hypothetical Document Embeddings (HyDE) enhances retrieval by creating and using “fake” hypothetical document based on a query to find similar documents. [[2](#2)] 
+
+## Document Summary Index
+
+<img src="images/document_summary_indexing.png" width="75%">
+
+Document Summary Index leverages document summaries for retrieval and uses full text documents for response generation. [[3](#3)]
+
+# Summary
+
+<img src="images/summary.png" width="75%">
+
+# Experimental Results
 
 The following table shows the semantic similarity of the answers retrieved by the different techniques over the [ARAGOG 
 dataset](https://github.com/predlico/ARAGOG). The results are obtained by comparing the retrieved answers with the ground truth answers using the Semantic
