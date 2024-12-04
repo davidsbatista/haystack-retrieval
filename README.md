@@ -21,7 +21,7 @@ evaluated using the [ARAGOG dataset](https://github.com/predlico/ARAGOG) with th
 
 ## Sentence Window Retrieval
 
-<img src="images/sentence_window_retrieval.png" width="65%">
+<img src="images/sentence_window_retrieval.png" width="80%">
 
 The sentence window retrieval technique that allows for the retrieval of the context around relevant sentences.
 During indexing, documents are broken into smaller chunks or sentences and indexed. During retrieval, the sentences most relevant to a given query, based on a certain similarity metric, are retrieved.
@@ -29,7 +29,7 @@ Once we have the relevant sentences, we can retrieve neighboring sentences to pr
 
 ## Auto-Merging Retrieval
 
-<img src="images/auto_merging_retrieval.png" width="65%">
+<img src="images/auto_merging_retrieval.png" width="80%">
 
 Auto-Merging is a retrieval technique that leverages a hierarchical document structure. Where we can think of the smaller 
 documents as the children of the original document and the original document as the parent. This results in a 
@@ -39,7 +39,7 @@ parent depending on whether the number of matched leaf nodes below the same pare
 
 ## Maximum Marginal Relevance
 
-<img src="images/maximum_marginal_relevance.png" width="75%">
+<img src="images/maximum_marginal_relevance.png" width="85%">
 
 Maximum Marginal Relevance ranks documents by selecting first those relevant to the query and dissimilar to the 
 already retrieved. [[1](#1)] This technique is used to re-rank the documents retrieved by the baseline RAG model.
@@ -48,7 +48,7 @@ relevant to the user's query and have minimal similarity to previously selected 
 
 ## Hybrid Search Retrieval
 
-<img src="images/hybird_search.png" width="75%">
+<img src="images/hybird_search.png" width="80%">
 
 Hybrid Search Retrieval combines multiple retrieval strategies, One example of hybrid search is combining keyword search 
 with semantic search, for instance, a BM25 retrieval and a embeddings-based retrieval. One example of where hybrid
@@ -57,7 +57,7 @@ search is useful can be seen in platforms like e-commerce websites. Users might 
 
 ## Multi-Query
  
-<img src="images/multi_query.png" width="75%">
+<img src="images/multi_query.png" width="80%">
 
 Multi-query retrieves documents based on multiple queries generated from the original query by using synonyms, different
 word orders, or other transformations. This technique is used to retrieve documents that might not be retrieved by the
@@ -67,7 +67,7 @@ and the retrieval system can benefit from multiple interpretations of the query.
 
 ## Hypothetical Document Embeddings - HyDE
 
-<img src="images/hyde.png" width="65%">
+<img src="images/hyde.png" width="80%">
 
 Given a query, the Hypothetical Document Embeddings (HyDE)[[2](#2)] first zero-shot prompts an instruction-following language model 
 to generate a “fake” hypothetical document that captures relevant textual patterns from the initial query - in practice, 
@@ -77,7 +77,7 @@ documents are retrieved based on vector similarity.
 
 ## Document Summary Index
 
-<img src="images/document_summary_indexing.png" width="65%">
+<img src="images/document_summary_indexing.png" width="85%">
 
 Document Summary Index leverages document summaries for retrieval and uses full text documents for response generation. [[3](#3)]
 It is a two-step retrieval process. First, the document summaries are indexed. Then, the full text documents are indexed
@@ -86,7 +86,7 @@ performance of the RAG model by using the document summaries to retrieve the ful
 
 # Summary
 
-<img src="images/summary.png" width="65%">
+<img src="images/summary.png" width="90%">
 
 # Experimental Results
 
