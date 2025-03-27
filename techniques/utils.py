@@ -13,6 +13,19 @@ from haystack.components.writers import DocumentWriter
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.document_stores.types import DuplicatePolicy
 
+template = """
+You have to answer the following question based on the given context information only.
+If the context is empty or just a '\\n' answer with None, example: "None".
+
+Context:
+{% for document in documents %}
+    {{ document.content }}
+{% endfor %}
+
+Question: {{question}}
+Answer:
+"""
+
 
 def read_question_answers(base_path: str) -> Tuple[List[str], List[str]]:
     with open(base_path + "eval_questions.json", "r") as f:

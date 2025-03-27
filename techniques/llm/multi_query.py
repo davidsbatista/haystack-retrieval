@@ -7,6 +7,8 @@ from haystack.components.generators import OpenAIGenerator
 from haystack.components.joiners import DocumentJoiner
 from haystack.components.retrievers import InMemoryEmbeddingRetriever
 
+from techniques.utils import template
+
 
 @component
 class MultiQueryGenerator:
@@ -49,18 +51,6 @@ class MultiQueryHandler:
 
 
 def multi_query_pipeline(doc_store, embedding_model: str):
-    template = """
-    You have to answer the following question based on the given context information only.
-    If the context is empty or just a '\\n' answer with None, example: "None".
-
-    Context:
-    {% for document in documents %}
-        {{ document.content }}
-    {% endfor %}
-
-    Question: {{question}}
-    Answer:
-    """
 
     pipeline = Pipeline()
 

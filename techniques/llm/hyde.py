@@ -10,6 +10,8 @@ from haystack.components.retrievers import InMemoryEmbeddingRetriever
 from haystack.utils import Secret
 from numpy import array, mean
 
+from techniques.utils import template
+
 
 @component
 class HypotheticalDocumentEmbedder:
@@ -83,18 +85,6 @@ class HypotheticalDocumentEmbedder:
 
 
 def rag_with_hyde(document_store, embedding_model, nr_completions, top_k):
-    template = """
-        You have to answer the following question based on the given context information only.
-        If the context is empty or just a '\n' answer with None, example: "None".
-
-        Context:
-        {% for document in documents %}
-            {{ document.content }}
-        {% endfor %}
-
-        Question: {{question}}
-        Answer:
-        """
 
     hyde = HypotheticalDocumentEmbedder(embedder_model=embedding_model, nr_completions=nr_completions)
 

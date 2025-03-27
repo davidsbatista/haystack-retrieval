@@ -14,6 +14,7 @@ from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.document_stores.types import DuplicatePolicy
 
 from techniques.llm.openai_summarisation import summarize
+from techniques.utils import template
 
 
 @component
@@ -117,19 +118,6 @@ def doc_summarisation_query_pipeline(chunk_doc_store, summaries_doc_store, embed
         output_type=List[str],
         custom_filters={'converter': lambda docs: [doc.id for doc in docs]}
     )
-
-    template = """
-    You have to answer the following question based on the given context information only.
-    If the context is empty or just a '\\n' answer with None, example: "None".
-
-    Context:
-    {% for document in documents %}
-        {{ document.content }}
-    {% endfor %}
-
-    Question: {{question}}
-    Answer:
-    """
 
     doc_summary_query = Pipeline()
     doc_summary_query.add_component("text_embedder", text_embedder)

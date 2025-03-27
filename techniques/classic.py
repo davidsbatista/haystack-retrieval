@@ -1,36 +1,25 @@
 from typing import Tuple, List
 
-from haystack import Pipeline, Document
+from haystack import Document, Pipeline
 from haystack.components.builders import AnswerBuilder, PromptBuilder
 from haystack.components.embedders import SentenceTransformersTextEmbedder, SentenceTransformersDocumentEmbedder
 from haystack.components.generators import OpenAIGenerator
 from haystack.components.joiners import DocumentJoiner
-from haystack.components.rankers import SentenceTransformersDiversityRanker, TransformersSimilarityRanker
+from haystack.components.rankers import SentenceTransformersDiversityRanker
 from haystack.components.retrievers import InMemoryEmbeddingRetriever
 from haystack.components.retrievers import SentenceWindowRetriever, InMemoryBM25Retriever
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.document_stores.types import DuplicatePolicy
+
 from haystack_experimental.components.retrievers import AutoMergingRetriever
 from haystack_experimental.components.splitters import HierarchicalDocumentSplitter
+from techniques.utils import template
 
 
 def mmr(document_store, embedding_model: str, top_k):
     text_embedder = SentenceTransformersTextEmbedder(model=embedding_model)
     embedding_retriever = InMemoryEmbeddingRetriever(document_store, top_k=top_k)
     ranker = SentenceTransformersDiversityRanker(strategy="maximum_margin_relevance")
-
-    template = """
-    You have to answer the following question based on the given context information only.
-    If the context is empty or just a '\\n' answer with None, example: "None".
-
-    Context:
-    {% for document in documents %}
-        {{ document.content }}
-    {% endfor %}
-
-    Question: {{question}}
-    Answer:
-    """
 
     mmr_pipeline = Pipeline()
     mmr_pipeline.add_component("text_embedder", text_embedder)
@@ -50,18 +39,6 @@ def mmr(document_store, embedding_model: str, top_k):
     return mmr_pipeline
 
 def sentence_window(doc_store, embedding_model, top_k):
-    template = """
-        You have to answer the following question based on the given context information only.
-        If the context is empty or just a '\n' answer with None, example: "None".
-
-        Context:
-        {% for document in documents %}
-            {{ document }}
-        {% endfor %}
-
-        Question: {{question}}
-        Answer:
-        """
 
     basic_rag = Pipeline()
     basic_rag.add_component(
@@ -91,19 +68,6 @@ def hybrid_search(document_store, embedding_model: str, top_k):
     embedding_retriever = InMemoryEmbeddingRetriever(document_store, top_k=top_k)
     bm25_retriever = InMemoryBM25Retriever(document_store, top_k=top_k)
     document_joiner = DocumentJoiner(join_mode="concatenate")
-
-    template = """
-    You have to answer the following question based on the given context information only.
-    If the context is empty or just a '\n' answer with None, example: "None".
-
-    Context:
-    {% for document in documents %}
-        {{ document.content }}
-    {% endfor %}
-
-    Question: {{question}}
-    Answer:
-    """
 
     hybrid_retrieval = Pipeline()
     hybrid_retrieval.add_component("text_embedder", text_embedder)
@@ -147,18 +111,6 @@ def hierarchical_indexing(documents: List[Document], embedding_model: str) -> Tu
     return leaf_doc_store, parent_doc_store
 
 def auto_merging(leaf_doc_store, parent_doc_store, embedding_model, top_k):
-    template = """
-        You have to answer the following question based on the given context information only.
-        If the context is empty or just a '\n' answer with None, example: "None".
-
-        Context:
-        {% for document in documents %}
-            {{ document.content }}
-        {% endfor %}
-
-        Question: {{question}}
-        Answer:
-        """
 
     basic_rag = Pipeline()
     basic_rag.add_component(
