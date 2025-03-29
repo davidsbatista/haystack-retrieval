@@ -1,0 +1,5 @@
+haystack-ai==2.11.1
+tiktoken==0.9.0
+pypdf==5.4.0
+nltk>=3.9.1
+sentence-transformers>=3.0.0
