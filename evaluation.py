@@ -60,8 +60,12 @@ def maximum_marginal_relevance_reranking(answers, doc_store, embedding_model, qu
     for q in tqdm(questions):
         try:
             response = mmr_pipeline.run(
-                data={"text_embedder": {"text": q}, "prompt_builder": {"question": q}, "ranker": {"query": q},
-                      "answer_builder": {"query": q}})
+                data={
+                    "text_embedder": {"text": q}, "prompt_builder": {"question": q},
+                    "ranker": {"query": q, "top_k": top_k},
+                    "answer_builder": {"query": q}
+                }
+            )
             predicted_answers.append(response["answer_builder"]["answers"][0].data)
             retrieved_contexts.append([d.content for d in response["answer_builder"]["answers"][0].documents])
         except BadRequestError as e:
@@ -170,7 +174,7 @@ def main():
     base_path = "data/ARAGOG/"
     embedding_model = "sentence-transformers/all-MiniLM-L6-v2"
     chunk_size = 15
-    top_k = 3
+    top_k = 5
     hyde_n_completions = 3
     multi_query_n_variations = 3
 
@@ -178,6 +182,9 @@ def main():
     questions, answers = read_question_answers(base_path)
     print("Indexing documents...")
     doc_store = indexing(embedding_model, chunk_size, base_path)
+
+    print("Number of documents indexed:")
+    print(len(doc_store.storage.values()))
 
     # classical techniques
     # print("\n\nSentence Window")
