@@ -29,6 +29,7 @@ def sentence_window_eval(answers, doc_store, embedding_model, questions, top_k):
 
     results, inputs = run_evaluation(questions, answers, retrieved_contexts, predicted_answers, embedding_model)
     eval_results_rag_window = EvaluationRunResult(run_name="window-retrieval", inputs=inputs, results=results)
+    print(eval_results_rag_window.detailed_report())
     print(eval_results_rag_window.aggregated_report())
 
 def auto_merging_eval(answers, base_path, embedding_model, questions, top_k):
@@ -187,22 +188,22 @@ def main():
     print(len(doc_store.storage.values()))
 
     # classical techniques
-    # print("\n\nSentence Window")
-    # sentence_window_eval(answers, doc_store, embedding_model, questions, top_k)
-    # print("\n\nAuto Merging")
-    # auto_merging_eval(answers, base_path, embedding_model, questions, top_k)
+    print("\n\nSentence Window")
+    sentence_window_eval(answers, doc_store, embedding_model, questions, top_k)
+    print("\n\nAuto Merging")
+    auto_merging_eval(answers, base_path, embedding_model, questions, top_k)
     print("\n\nMaximum Marginal Relevance Reranking")
     maximum_marginal_relevance_reranking(answers, doc_store, embedding_model, questions, top_k)
-    # print("\n\nHybrid Search")
-    # hybrid_search_eval(answers, doc_store, embedding_model, questions, top_k)
+    print("\n\nHybrid Search")
+    hybrid_search_eval(answers, doc_store, embedding_model, questions, top_k)
 
     # LLM-based techniques
-    # print("\n\nHyDE")
-    # hyde_eval(answers, doc_store, embedding_model, questions, hyde_n_completions, top_k)
-    # print("\n\nMulti Query")
-    # multi_query_eval(answers, doc_store, embedding_model, questions, multi_query_n_variations, top_k)
-    # print("\n\nDoc Summarisation")
-    # doc_summary_indexing(embedding_model, base_path, questions, answers, top_k)
+    print("\n\nHyDE")
+    hyde_eval(answers, doc_store, embedding_model, questions, hyde_n_completions, top_k)
+    print("\n\nMulti Query")
+    multi_query_eval(answers, doc_store, embedding_model, questions, multi_query_n_variations, top_k)
+    print("\n\nDoc Summarisation")
+    doc_summary_indexing(embedding_model, base_path, questions, answers, top_k)
 
 if __name__ == "__main__":
     main()

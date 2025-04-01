@@ -1,5 +1,6 @@
-haystack-ai==2.11.1
-tiktoken==0.9.0
-pypdf==5.4.0
+datasets
+haystack-ai==2.11.2
 nltk>=3.9.1
+pypdf==5.4.0
 sentence-transformers>=3.0.0
+tiktoken==0.9.0
