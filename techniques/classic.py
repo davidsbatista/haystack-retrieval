@@ -13,7 +13,19 @@ from haystack.document_stores.types import DuplicatePolicy
 
 from haystack_experimental.components.retrievers import AutoMergingRetriever
 from haystack_experimental.components.splitters import HierarchicalDocumentSplitter
-from techniques.utils import template
+
+template = """
+       You have to answer the following question based on the given context information only.
+       If the context is empty or just a '\n' answer with None, example: "None".
+
+       Context:
+       {% for document in documents %}
+           {{ document }}
+       {% endfor %}
+
+       Question: {{question}}
+       Answer:
+       """
 
 
 def mmr(document_store, embedding_model: str, top_k):
@@ -39,7 +51,6 @@ def mmr(document_store, embedding_model: str, top_k):
     return mmr_pipeline
 
 def sentence_window(doc_store, embedding_model, top_k):
-
     basic_rag = Pipeline()
     basic_rag.add_component(
         "query_embedder", SentenceTransformersTextEmbedder(model=embedding_model, progress_bar=False)
