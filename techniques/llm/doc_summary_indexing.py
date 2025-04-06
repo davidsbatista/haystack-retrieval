@@ -14,7 +14,6 @@ from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.document_stores.types import DuplicatePolicy
 
 from techniques.llm.openai_summarisation import summarize
-from techniques.utils import template
 
 
 @component
@@ -54,45 +53,75 @@ class ChunksRetriever:
 
         return {"chunks": context_docs}
 
-def indexing_doc_summarisation(embedding_model: str, base_path: str, chunk_size = 15):
+def indexing_doc_summarisation(embedding_model: str, documents, chunk_size = 15):
     """
     Summary: document → cleaner → summarizer → embedder → writer
     """
-    full_path = Path(base_path)
-    files_path = full_path / "papers_for_questions"
 
     chunk_doc_store = InMemoryDocumentStore()
     summaries_doc_store = InMemoryDocumentStore()
 
-    indexing = Pipeline()
-    indexing.add_component("converter", PyPDFToDocument())
-    indexing.add_component("cleaner", DocumentCleaner())
+    if isinstance(documents, str):
+        full_path = Path(documents)
+        files_path = full_path / "papers_for_questions"
 
-    # summary
-    indexing.add_component("summarizer", Summarizer())
-    indexing.add_component("summary_embedder", SentenceTransformersDocumentEmbedder(model=embedding_model))
-    indexing.add_component("summary_writer", DocumentWriter(document_store=summaries_doc_store))
+        indexing = Pipeline()
+        indexing.add_component("converter", PyPDFToDocument())
+        indexing.add_component("cleaner", DocumentCleaner())
 
-    # chunks
-    indexing.add_component("splitter", DocumentSplitter(split_length=chunk_size, split_overlap=0, split_by="sentence"))
-    indexing.add_component("chunk_embedder", SentenceTransformersDocumentEmbedder(model=embedding_model))
-    indexing.add_component("chunk_writer", DocumentWriter(document_store=chunk_doc_store, policy=DuplicatePolicy.SKIP))
+        # summary
+        indexing.add_component("summarizer", Summarizer())
+        indexing.add_component("summary_embedder", SentenceTransformersDocumentEmbedder(model=embedding_model, progress_bar=False))
+        indexing.add_component("summary_writer", DocumentWriter(document_store=summaries_doc_store))
 
-    #  connections
-    indexing.connect("converter", "cleaner")
+        # chunks
+        indexing.add_component("splitter", DocumentSplitter(split_length=chunk_size, split_overlap=0, split_by="sentence"))
+        indexing.add_component("chunk_embedder", SentenceTransformersDocumentEmbedder(model=embedding_model, progress_bar=False))
+        indexing.add_component("chunk_writer", DocumentWriter(document_store=chunk_doc_store, policy=DuplicatePolicy.SKIP))
 
-    # connect components for summary
-    indexing.connect("cleaner", "summarizer")
-    indexing.connect("summarizer", "summary_embedder")
-    indexing.connect("summary_embedder", "summary_writer")
+        #  connections
+        indexing.connect("converter", "cleaner")
+        # connect components for summary
+        indexing.connect("cleaner", "summarizer")
 
-    # connect components for chunks
-    indexing.connect("cleaner", "splitter")
-    indexing.connect("splitter", "chunk_embedder")
-    indexing.connect("chunk_embedder", "chunk_writer")
+        indexing.connect("summarizer", "summary_embedder")
+        indexing.connect("summary_embedder", "summary_writer")
 
-    pdf_files = [files_path / f_name for f_name in os.listdir(files_path)]
-    indexing.run({"converter": {"sources": pdf_files}})
+        # connect components for chunks
+        indexing.connect("cleaner", "splitter")
+        indexing.connect("splitter", "chunk_embedder")
+        indexing.connect("chunk_embedder", "chunk_writer")
+
+        pdf_files = [files_path / f_name for f_name in os.listdir(files_path)]
+        indexing.run({"converter": {"sources": pdf_files}})
+
+    else:
+        # If documents are already loaded, we can skip the conversion step
+        indexing = Pipeline()
+        indexing.add_component("cleaner", DocumentCleaner())
+
+        # summary
+        indexing.add_component("summarizer", Summarizer())
+        indexing.add_component("summary_embedder", SentenceTransformersDocumentEmbedder(model=embedding_model))
+        indexing.add_component("summary_writer", DocumentWriter(document_store=summaries_doc_store))
+
+        # chunks
+        indexing.add_component("splitter", DocumentSplitter(split_length=chunk_size, split_overlap=0, split_by="sentence"))
+        indexing.add_component("chunk_embedder", SentenceTransformersDocumentEmbedder(model=embedding_model))
+        indexing.add_component("chunk_writer", DocumentWriter(document_store=chunk_doc_store, policy=DuplicatePolicy.SKIP))
+
+        #  connections
+        indexing.connect("cleaner", "summarizer")
+
+        indexing.connect("summarizer", "summary_embedder")
+        indexing.connect("summary_embedder", "summary_writer")
+
+        # connect components for chunks
+        indexing.connect("cleaner", "splitter")
+        indexing.connect("splitter", "chunk_embedder")
+        indexing.connect("chunk_embedder", "chunk_writer")
+
+        indexing.run({"cleaner": {"documents": documents}})
 
     return summaries_doc_store, chunk_doc_store
 
@@ -108,7 +137,20 @@ def doc_summarisation_query_pipeline(chunk_doc_store, summaries_doc_store, embed
         most relevant chunks to the query are retrieved.
     """
 
-    text_embedder = SentenceTransformersTextEmbedder(model=embedding_model)
+    template = """
+           You have to answer the following question based on the given context information only.
+           If the context is empty or just a '\n' answer with None, example: "None".
+
+           Context:
+           {% for document in documents %}
+               {{ document }}
+           {% endfor %}
+
+           Question: {{question}}
+           Answer:
+           """
+
+    text_embedder = SentenceTransformersTextEmbedder(model=embedding_model, progress_bar=False)
     summary_embedding_retriever = InMemoryEmbeddingRetriever(summaries_doc_store, top_k=top_k)
     chunk_embedding_retriever = ChunksRetriever(chunk_doc_store)
 
@@ -124,7 +166,7 @@ def doc_summarisation_query_pipeline(chunk_doc_store, summaries_doc_store, embed
     doc_summary_query.add_component("summary_retriever", summary_embedding_retriever)
     doc_summary_query.add_component("chunk_embedding_retriever", chunk_embedding_retriever)
     doc_summary_query.add_component("output_adapter", output_adapter)
-    doc_summary_query.add_component("prompt_builder", PromptBuilder(template=template))
+    doc_summary_query.add_component("prompt_builder", PromptBuilder(template=template, required_variables=['question', 'documents']))
     doc_summary_query.add_component("llm", OpenAIGenerator())
     doc_summary_query.add_component("answer_builder", AnswerBuilder())
 

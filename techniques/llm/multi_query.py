@@ -7,7 +7,18 @@ from haystack.components.generators import OpenAIGenerator
 from haystack.components.joiners import DocumentJoiner
 from haystack.components.retrievers import InMemoryEmbeddingRetriever
 
-from techniques.utils import template
+template = """
+       You have to answer the following question based on the given context information only.
+       If the context is empty or just a '\n' answer with None, example: "None".
+
+       Context:
+       {% for document in documents %}
+           {{ document }}
+       {% endfor %}
+
+       Question: {{question}}
+       Answer:
+       """
 
 
 @component
@@ -58,7 +69,7 @@ def multi_query_pipeline(doc_store, embedding_model: str):
     pipeline.add_component("multi_query_generator", MultiQueryGenerator())
     pipeline.add_component("multi_query_handler", MultiQueryHandler(document_store=doc_store,embedding_model=embedding_model))
     pipeline.add_component("reranker", DocumentJoiner(join_mode="reciprocal_rank_fusion"))
-    pipeline.add_component("prompt_builder", PromptBuilder(template=template))
+    pipeline.add_component("prompt_builder", PromptBuilder(template=template, required_variables=['question', 'documents']))
     pipeline.add_component("llm", OpenAIGenerator())
     pipeline.add_component("answer_builder", AnswerBuilder())
 

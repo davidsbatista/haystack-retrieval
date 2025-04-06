@@ -1,7 +1,10 @@
+from typing import Union
+
 from haystack.evaluation import EvaluationRunResult
 from openai import BadRequestError
 from tqdm import tqdm
 
+from haystack import Document
 from techniques.classic import mmr, sentence_window, hybrid_search, hierarchical_indexing, auto_merging
 from techniques.llm.doc_summary_indexing import indexing_doc_summarisation, doc_summarisation_query_pipeline
 from techniques.llm.hyde import rag_with_hyde
@@ -28,12 +31,15 @@ def sentence_window_eval(answers, doc_store, embedding_model, questions, top_k):
 
     results, inputs = run_evaluation(questions, answers, retrieved_contexts, predicted_answers, embedding_model)
     eval_results_rag_window = EvaluationRunResult(run_name="window-retrieval", inputs=inputs, results=results)
-    print(eval_results_rag_window.detailed_report())
+    # print(eval_results_rag_window.detailed_report())
     print(eval_results_rag_window.aggregated_report())
 
-def auto_merging_eval(answers, base_path, embedding_model, questions, top_k):
-    pdf_documents = transform_pdf_to_documents(base_path)
-    leaf_doc_store, parent_doc_store = hierarchical_indexing(pdf_documents, embedding_model)
+def auto_merging_eval(answers, documents: Union[str, list[Document]], embedding_model, questions, top_k):
+    if isinstance(documents,str):
+        print("Transforming pdf documents...")
+        documents = transform_pdf_to_documents(documents)
+
+    leaf_doc_store, parent_doc_store = hierarchical_indexing(documents, embedding_model)
     auto_merging_retrieval = auto_merging(leaf_doc_store, parent_doc_store, embedding_model, top_k)
     predicted_answers = []
     retrieved_contexts = []
@@ -143,10 +149,10 @@ def hyde_eval(answers, doc_store, embedding_model, questions, nr_completions, to
     eval_results_hyde = EvaluationRunResult(run_name="hyde", inputs=inputs, results=results)
     print(eval_results_hyde.aggregated_report())
 
-def doc_summary_indexing(embedding_model: str, base_path: str, questions, answers, top_k):
+def doc_summary_indexing(embedding_model: str, documents: Union[str, list[Document]], questions, answers, top_k):
 
     print("Indexing summaries...")
-    summaries_doc_store, chunk_doc_store = indexing_doc_summarisation(embedding_model, base_path)
+    summaries_doc_store, chunk_doc_store = indexing_doc_summarisation(embedding_model, documents)
     query_pipe = doc_summarisation_query_pipeline(
         chunk_doc_store=chunk_doc_store,
         summaries_doc_store=summaries_doc_store,

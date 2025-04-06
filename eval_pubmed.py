@@ -35,10 +35,10 @@ def main():
 
     embedding_model = "sentence-transformers/all-MiniLM-L6-v2"
     chunk_size = 15
-    top_k = 5
+    top_k = 3
     hyde_n_completions = 3
     multi_query_n_variations = 3
-    n_questions = 107
+    n_questions = 10
 
     dataset = load_dataset("vblagoje/PubMedQA_instruction", split="train")
     subset_dataset = dataset.select(range(n_questions))
@@ -52,14 +52,11 @@ def main():
     print("Number of documents indexed:")
     print(len(doc_store.storage.values()))
 
-    print("Number of documents indexed:")
-    print(len(doc_store.storage.values()))
-
     # classical techniques
     print("\n\nSentence Window")
     sentence_window_eval(answers, doc_store, embedding_model, questions, top_k)
     print("\n\nAuto Merging")
-    auto_merging_eval(answers, base_path, embedding_model, questions, top_k)
+    auto_merging_eval(answers, documents, embedding_model, questions, top_k)
     print("\n\nMaximum Marginal Relevance Reranking")
     maximum_marginal_relevance_reranking(answers, doc_store, embedding_model, questions, top_k)
     print("\n\nHybrid Search")
@@ -71,7 +68,7 @@ def main():
     print("\n\nMulti Query")
     multi_query_eval(answers, doc_store, embedding_model, questions, multi_query_n_variations, top_k)
     print("\n\nDoc Summarisation")
-    doc_summary_indexing(embedding_model, base_path, questions, answers, top_k)
+    doc_summary_indexing(embedding_model, documents, questions, answers, top_k)
 
 
 if __name__ == '__main__':

@@ -27,9 +27,31 @@ template = """
        Answer:
        """
 
+def sentence_window(doc_store, embedding_model, top_k):
+    basic_rag = Pipeline()
+    basic_rag.add_component(
+        "query_embedder", SentenceTransformersTextEmbedder(model=embedding_model, progress_bar=False)
+    )
+    basic_rag.add_component("retriever", InMemoryEmbeddingRetriever(doc_store, top_k=top_k))
+    basic_rag.add_component("sentence_window_retriever", SentenceWindowRetriever(document_store=doc_store))
+    basic_rag.add_component("prompt_builder", PromptBuilder(template=template, required_variables=['question', 'documents']))
+    basic_rag.add_component("llm", OpenAIGenerator())
+    basic_rag.add_component("answer_builder", AnswerBuilder())
+
+    basic_rag.connect("query_embedder", "retriever.query_embedding")
+    basic_rag.connect("retriever", "sentence_window_retriever")
+    basic_rag.connect("sentence_window_retriever.context_windows", "prompt_builder.documents")
+    basic_rag.connect("prompt_builder", "llm")
+    basic_rag.connect("llm.replies", "answer_builder.replies")
+    basic_rag.connect("llm.meta", "answer_builder.meta")
+
+    # to see the retrieved documents in the answer
+    basic_rag.connect("retriever", "answer_builder.documents")
+
+    return basic_rag
 
 def mmr(document_store, embedding_model: str, top_k):
-    text_embedder = SentenceTransformersTextEmbedder(model=embedding_model)
+    text_embedder = SentenceTransformersTextEmbedder(model=embedding_model, progress_bar=False)
     embedding_retriever = InMemoryEmbeddingRetriever(document_store, top_k=top_k)
     ranker = SentenceTransformersDiversityRanker(strategy="maximum_margin_relevance")
 
@@ -50,32 +72,9 @@ def mmr(document_store, embedding_model: str, top_k):
 
     return mmr_pipeline
 
-def sentence_window(doc_store, embedding_model, top_k):
-    basic_rag = Pipeline()
-    basic_rag.add_component(
-        "query_embedder", SentenceTransformersTextEmbedder(model=embedding_model, progress_bar=False)
-    )
-    basic_rag.add_component("retriever", InMemoryEmbeddingRetriever(doc_store, top_k=top_k))
-    basic_rag.add_component("sentence_window_retriever", SentenceWindowRetriever(document_store=doc_store))
-    basic_rag.add_component("prompt_builder", PromptBuilder(template=template))
-    basic_rag.add_component("llm", OpenAIGenerator(model="gpt-3.5-turbo"))
-    basic_rag.add_component("answer_builder", AnswerBuilder())
-
-    basic_rag.connect("query_embedder", "retriever.query_embedding")
-    basic_rag.connect("retriever", "sentence_window_retriever")
-    basic_rag.connect("sentence_window_retriever.context_windows", "prompt_builder.documents")
-    basic_rag.connect("prompt_builder", "llm")
-    basic_rag.connect("llm.replies", "answer_builder.replies")
-    basic_rag.connect("llm.meta", "answer_builder.meta")
-
-    # to see the retrieved documents in the answer
-    basic_rag.connect("retriever", "answer_builder.documents")
-
-    return basic_rag
-
 def hybrid_search(document_store, embedding_model: str, top_k):
 
-    text_embedder = SentenceTransformersTextEmbedder(model=embedding_model)
+    text_embedder = SentenceTransformersTextEmbedder(model=embedding_model, progress_bar=False)
     embedding_retriever = InMemoryEmbeddingRetriever(document_store, top_k=top_k)
     bm25_retriever = InMemoryBM25Retriever(document_store, top_k=top_k)
     document_joiner = DocumentJoiner(join_mode="concatenate")
@@ -85,7 +84,7 @@ def hybrid_search(document_store, embedding_model: str, top_k):
     hybrid_retrieval.add_component("embedding_retriever", embedding_retriever)
     hybrid_retrieval.add_component("bm25_retriever", bm25_retriever)
     hybrid_retrieval.add_component("document_joiner", document_joiner)
-    hybrid_retrieval.add_component("prompt_builder", PromptBuilder(template=template))
+    hybrid_retrieval.add_component("prompt_builder", PromptBuilder(template=template, required_variables=['question', 'documents']))
     hybrid_retrieval.add_component("llm", OpenAIGenerator())
     hybrid_retrieval.add_component("answer_builder", AnswerBuilder())
     hybrid_retrieval.connect("text_embedder", "embedding_retriever")
@@ -129,7 +128,7 @@ def auto_merging(leaf_doc_store, parent_doc_store, embedding_model, top_k):
     )
     basic_rag.add_component("retriever", InMemoryEmbeddingRetriever(leaf_doc_store, top_k=top_k))
     basic_rag.add_component("auto_merging_retriever", AutoMergingRetriever(document_store=parent_doc_store))
-    basic_rag.add_component("prompt_builder", PromptBuilder(template=template))
+    basic_rag.add_component("prompt_builder", PromptBuilder(template=template, required_variables=['question', 'documents']))
     basic_rag.add_component("llm", OpenAIGenerator())
     basic_rag.add_component("answer_builder", AnswerBuilder())
 
