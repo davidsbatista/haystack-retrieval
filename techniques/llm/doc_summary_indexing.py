@@ -102,12 +102,12 @@ def indexing_doc_summarisation(embedding_model: str, documents, chunk_size = 15)
 
         # summary
         indexing.add_component("summarizer", Summarizer())
-        indexing.add_component("summary_embedder", SentenceTransformersDocumentEmbedder(model=embedding_model))
+        indexing.add_component("summary_embedder", SentenceTransformersDocumentEmbedder(model=embedding_model, progress_bar=False))
         indexing.add_component("summary_writer", DocumentWriter(document_store=summaries_doc_store))
 
         # chunks
         indexing.add_component("splitter", DocumentSplitter(split_length=chunk_size, split_overlap=0, split_by="sentence"))
-        indexing.add_component("chunk_embedder", SentenceTransformersDocumentEmbedder(model=embedding_model))
+        indexing.add_component("chunk_embedder", SentenceTransformersDocumentEmbedder(model=embedding_model, progress_bar=False))
         indexing.add_component("chunk_writer", DocumentWriter(document_store=chunk_doc_store, policy=DuplicatePolicy.SKIP))
 
         #  connections

@@ -16,7 +16,7 @@ template = """
 
        Context:
        {% for document in documents %}
-           {{ document }}
+           {{ document.content }}
        {% endfor %}
 
        Question: {{question}}
@@ -46,7 +46,8 @@ class HypotheticalDocumentEmbedder:
             template="""Given a question, generate a paragraph of text that answers the question.
             Question: {{question}}
             Paragraph:
-            """
+            """,
+            required_variables=["question"],
         )
 
         self.adapter = OutputAdapter(

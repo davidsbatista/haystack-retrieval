@@ -1,5 +1,5 @@
 datasets
-haystack-ai==2.11.2
+haystack-ai>=2.11.2
 nltk>=3.9.1
 pypdf==5.4.0
 sentence-transformers>=3.0.0

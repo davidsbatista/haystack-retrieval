@@ -55,6 +55,7 @@ def main():
     # classical techniques
     print("\n\nSentence Window")
     sentence_window_eval(answers, doc_store, embedding_model, questions, top_k)
+    """
     print("\n\nAuto Merging")
     auto_merging_eval(answers, documents, embedding_model, questions, top_k)
     print("\n\nMaximum Marginal Relevance Reranking")
@@ -69,6 +70,7 @@ def main():
     multi_query_eval(answers, doc_store, embedding_model, questions, multi_query_n_variations, top_k)
     print("\n\nDoc Summarisation")
     doc_summary_indexing(embedding_model, documents, questions, answers, top_k)
+    """
 
 
 if __name__ == '__main__':

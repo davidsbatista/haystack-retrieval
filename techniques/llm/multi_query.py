@@ -33,7 +33,9 @@ class MultiQueryGenerator:
             the limitations of distance-based similarity search. Provide these alternative questions separated by 
             newlines. 
             Original question: {{question}}
-            """
+            """,
+            required_variables=["question", "n_variations"],
+
         )
 
     @component.output_types(queries=List[str])
@@ -69,7 +71,7 @@ def multi_query_pipeline(doc_store, embedding_model: str):
     pipeline.add_component("multi_query_generator", MultiQueryGenerator())
     pipeline.add_component("multi_query_handler", MultiQueryHandler(document_store=doc_store,embedding_model=embedding_model))
     pipeline.add_component("reranker", DocumentJoiner(join_mode="reciprocal_rank_fusion"))
-    pipeline.add_component("prompt_builder", PromptBuilder(template=template, required_variables=['question', 'documents']))
+    pipeline.add_component("prompt_builder", PromptBuilder(template=template))
     pipeline.add_component("llm", OpenAIGenerator())
     pipeline.add_component("answer_builder", AnswerBuilder())
 

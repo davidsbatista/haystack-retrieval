@@ -20,7 +20,7 @@ def read_question_answers(base_path: str) -> Tuple[List[str], List[str]]:
         answers = data["ground_truths"]
     return questions, answers
 
-def transform_pdf_to_documents(base_path: str) -> List[Document]:
+def transform_pdf_to_documents(base_path: str) -> list[Document]:
     full_path = Path(base_path)
     files_path = full_path / "papers_for_questions"
     pipeline = Pipeline()
