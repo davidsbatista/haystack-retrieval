@@ -1,9 +1,11 @@
 from typing import Tuple, List
 
 from haystack import Pipeline, Document
-from haystack.components.builders import AnswerBuilder, PromptBuilder
+from haystack.components.builders import AnswerBuilder, PromptBuilder, ChatPromptBuilder
 from haystack.components.embedders import SentenceTransformersTextEmbedder, SentenceTransformersDocumentEmbedder
 from haystack.components.generators import OpenAIGenerator
+from haystack.dataclasses.chat_message import ChatMessage
+from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.components.joiners import DocumentJoiner
 from haystack.components.rankers import SentenceTransformersDiversityRanker
 from haystack.components.retrievers import InMemoryEmbeddingRetriever
@@ -16,18 +18,21 @@ from haystack.components.preprocessors import HierarchicalDocumentSplitter
 # ToDo: ChatPromptBuilder and OpenAIChatGenerator
 
 def sentence_window(doc_store, embedding_model, top_k):
-    template = """
-        You have to answer the following question based on the given context information only.
-        If the context is empty or just a '\n' answer with None, example: "None".
+    template = [
+        ChatMessage.from_system(
+            "You are a helpful AI assistant. Answer the following question based on the given context information only. If the context is empty or just a '\n' answer with None, example: 'None'."
+        ),
+        ChatMessage.from_user(
+            """
+            Context:
+            {% for document in documents %}
+                {{ document }}
+            {% endfor %}
 
-        Context:
-        {% for document in documents %}
-            {{ document }}
-        {% endfor %}
-
-        Question: {{question}}
-        Answer:
-        """
+            Question: {{question}}
+            """
+        )
+    ]
 
     basic_rag = Pipeline()
     basic_rag.add_component(
@@ -35,8 +40,8 @@ def sentence_window(doc_store, embedding_model, top_k):
     )
     basic_rag.add_component("retriever", InMemoryEmbeddingRetriever(doc_store, top_k=top_k))
     basic_rag.add_component("sentence_window_retriever", SentenceWindowRetriever(document_store=doc_store))
-    basic_rag.add_component("prompt_builder", PromptBuilder(template=template, required_variables=["question", "documents"]))
-    basic_rag.add_component("llm", OpenAIGenerator())
+    basic_rag.add_component("prompt_builder", ChatPromptBuilder(template=template, required_variables=["question", "documents"]))
+    basic_rag.add_component("llm", OpenAIChatGenerator())
     basic_rag.add_component("answer_builder", AnswerBuilder())
 
     basic_rag.connect("query_embedder", "retriever.query_embedding")
@@ -44,7 +49,6 @@ def sentence_window(doc_store, embedding_model, top_k):
     basic_rag.connect("sentence_window_retriever.context_windows", "prompt_builder.documents")
     basic_rag.connect("prompt_builder", "llm")
     basic_rag.connect("llm.replies", "answer_builder.replies")
-    basic_rag.connect("llm.meta", "answer_builder.meta")
 
     # to see the retrieved documents in the answer
     basic_rag.connect("retriever", "answer_builder.documents")
@@ -110,43 +114,6 @@ def auto_merging(leaf_doc_store, parent_doc_store, embedding_model, top_k):
 
     return basic_rag
 
-
-# def mmr(document_store, embedding_model: str, top_k):
-#     text_embedder = SentenceTransformersTextEmbedder(model=embedding_model)
-#     embedding_retriever = InMemoryEmbeddingRetriever(document_store, top_k=top_k)
-#     ranker = SentenceTransformersDiversityRanker(strategy="maximum_margin_relevance")
-#
-#     template = """
-#     You have to answer the following question based on the given context information only.
-#     If the context is empty or just a '\\n' answer with None, example: "None".
-#
-#     Context:
-#     {% for document in documents %}
-#         {{ document.content }}
-#     {% endfor %}
-#
-#     Question: {{question}}
-#     Answer:
-#     """
-#
-#     mmr_pipeline = Pipeline()
-#     mmr_pipeline.add_component("text_embedder", text_embedder)
-#     mmr_pipeline.add_component("embedding_retriever", embedding_retriever)
-#     mmr_pipeline.add_component("ranker", ranker)
-#     mmr_pipeline.add_component("prompt_builder", PromptBuilder(template=template))
-#     mmr_pipeline.add_component("llm", OpenAIGenerator())
-#     mmr_pipeline.add_component("answer_builder", AnswerBuilder())
-#
-#     mmr_pipeline.connect("text_embedder", "embedding_retriever")
-#     mmr_pipeline.connect("embedding_retriever", "ranker.documents")
-#     mmr_pipeline.connect("ranker", "prompt_builder.documents")
-#     mmr_pipeline.connect("prompt_builder", "llm")
-#     mmr_pipeline.connect("llm.replies", "answer_builder.replies")
-#     mmr_pipeline.connect("llm.meta", "answer_builder.meta")
-#
-#     return mmr_pipeline
-
-
 def mmr(document_store, embedding_model: str, top_k):
     text_embedder = SentenceTransformersTextEmbedder(model=embedding_model, progress_bar=False)
     embedding_retriever = InMemoryEmbeddingRetriever(document_store, top_k=top_k)
@@ -182,7 +149,6 @@ def mmr(document_store, embedding_model: str, top_k):
     mmr_pipeline.connect("llm.meta", "answer_builder.meta")
 
     return mmr_pipeline
-
 
 def hybrid_search(document_store, embedding_model: str, top_k):
 

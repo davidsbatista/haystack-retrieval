@@ -178,7 +178,6 @@ def main():
     print("Indexing documents...")
     doc_store = indexing(embedding_model, chunk_size, base_path)
 
-    """
     # classical techniques
     print("Sentence window evaluation...")
     sentence_window_eval(answers, doc_store, embedding_model, questions, top_k)
@@ -189,14 +188,10 @@ def main():
     """
     print("Maximum Marginal Relevance evaluation...")
     maximum_marginal_relevance_reranking(answers, doc_store, embedding_model, questions, top_k)
-
-    """
     print("\nHybrid search evaluation...")
     hybrid_search_eval(answers, doc_store, embedding_model, questions, top_k)
     print("\n")
-    """
 
-    """
     # LLM-based techniques
     print("Hyde evaluation...")
     hyde_eval(answers, doc_store, embedding_model, questions, hyde_n_completions, top_k)
