@@ -110,10 +110,47 @@ def auto_merging(leaf_doc_store, parent_doc_store, embedding_model, top_k):
 
     return basic_rag
 
+
+# def mmr(document_store, embedding_model: str, top_k):
+#     text_embedder = SentenceTransformersTextEmbedder(model=embedding_model)
+#     embedding_retriever = InMemoryEmbeddingRetriever(document_store, top_k=top_k)
+#     ranker = SentenceTransformersDiversityRanker(strategy="maximum_margin_relevance")
+#
+#     template = """
+#     You have to answer the following question based on the given context information only.
+#     If the context is empty or just a '\\n' answer with None, example: "None".
+#
+#     Context:
+#     {% for document in documents %}
+#         {{ document.content }}
+#     {% endfor %}
+#
+#     Question: {{question}}
+#     Answer:
+#     """
+#
+#     mmr_pipeline = Pipeline()
+#     mmr_pipeline.add_component("text_embedder", text_embedder)
+#     mmr_pipeline.add_component("embedding_retriever", embedding_retriever)
+#     mmr_pipeline.add_component("ranker", ranker)
+#     mmr_pipeline.add_component("prompt_builder", PromptBuilder(template=template))
+#     mmr_pipeline.add_component("llm", OpenAIGenerator())
+#     mmr_pipeline.add_component("answer_builder", AnswerBuilder())
+#
+#     mmr_pipeline.connect("text_embedder", "embedding_retriever")
+#     mmr_pipeline.connect("embedding_retriever", "ranker.documents")
+#     mmr_pipeline.connect("ranker", "prompt_builder.documents")
+#     mmr_pipeline.connect("prompt_builder", "llm")
+#     mmr_pipeline.connect("llm.replies", "answer_builder.replies")
+#     mmr_pipeline.connect("llm.meta", "answer_builder.meta")
+#
+#     return mmr_pipeline
+
+
 def mmr(document_store, embedding_model: str, top_k):
-    text_embedder = SentenceTransformersTextEmbedder(model=embedding_model)
+    text_embedder = SentenceTransformersTextEmbedder(model=embedding_model, progress_bar=False)
     embedding_retriever = InMemoryEmbeddingRetriever(document_store, top_k=top_k)
-    ranker = SentenceTransformersDiversityRanker(strategy="maximum_margin_relevance")
+    ranker = SentenceTransformersDiversityRanker(strategy="maximum_margin_relevance", top_k=top_k)
 
     template = """
     You have to answer the following question based on the given context information only.
@@ -128,11 +165,12 @@ def mmr(document_store, embedding_model: str, top_k):
     Answer:
     """
 
+
     mmr_pipeline = Pipeline()
     mmr_pipeline.add_component("text_embedder", text_embedder)
     mmr_pipeline.add_component("embedding_retriever", embedding_retriever)
     mmr_pipeline.add_component("ranker", ranker)
-    mmr_pipeline.add_component("prompt_builder", PromptBuilder(template=template))
+    mmr_pipeline.add_component("prompt_builder", PromptBuilder(template=template, required_variables=['question', 'documents']))
     mmr_pipeline.add_component("llm", OpenAIGenerator())
     mmr_pipeline.add_component("answer_builder", AnswerBuilder())
 
@@ -144,6 +182,7 @@ def mmr(document_store, embedding_model: str, top_k):
     mmr_pipeline.connect("llm.meta", "answer_builder.meta")
 
     return mmr_pipeline
+
 
 def hybrid_search(document_store, embedding_model: str, top_k):
 
