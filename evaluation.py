@@ -51,6 +51,7 @@ def auto_merging_eval(answers, base_path, embedding_model, questions, top_k):
     results, inputs = run_evaluation(questions, answers, retrieved_contexts, predicted_answers, embedding_model)
     eval_results_auto_merging = EvaluationRunResult(run_name="auto-merging-retrieval", inputs=inputs, results=results)
     print(eval_results_auto_merging.aggregated_report())
+    return eval_results_auto_merging.detailed_report(output_format="df")
 
 def maximum_marginal_relevance_reranking(answers, doc_store, embedding_model, questions, top_k):
     mmr_pipeline = mmr(doc_store, embedding_model, top_k)
@@ -185,13 +186,13 @@ def main():
     print("Auto-merging evaluation...")
     auto_merging_eval(answers, base_path, embedding_model, questions, top_k)
     print("\n")
-    """
     print("Maximum Marginal Relevance evaluation...")
     maximum_marginal_relevance_reranking(answers, doc_store, embedding_model, questions, top_k)
     print("\nHybrid search evaluation...")
     hybrid_search_eval(answers, doc_store, embedding_model, questions, top_k)
     print("\n")
 
+    """
     # LLM-based techniques
     print("Hyde evaluation...")
     hyde_eval(answers, doc_store, embedding_model, questions, hyde_n_completions, top_k)

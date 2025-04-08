@@ -79,18 +79,21 @@ def hierarchical_indexing(documents: List[Document], embedding_model: str) -> Tu
     return leaf_doc_store, parent_doc_store
 
 def auto_merging(leaf_doc_store, parent_doc_store, embedding_model, top_k):
-    template = """
-        You have to answer the following question based on the given context information only.
-        If the context is empty or just a '\n' answer with None, example: "None".
+    template = [
+        ChatMessage.from_system(
+            "You are a helpful AI assistant. Answer the following question based on the given context information only. If the context is empty or just a '\n' answer with None, example: 'None'."
+        ),
+        ChatMessage.from_user(
+            """
+            Context:
+            {% for document in documents %}
+                {{ document.content }}
+            {% endfor %}
 
-        Context:
-        {% for document in documents %}
-            {{ document.content }}
-        {% endfor %}
-
-        Question: {{question}}
-        Answer:
-        """
+            Question: {{question}}
+            """
+        )
+    ]
 
     basic_rag = Pipeline()
     basic_rag.add_component(
@@ -98,8 +101,8 @@ def auto_merging(leaf_doc_store, parent_doc_store, embedding_model, top_k):
     )
     basic_rag.add_component("retriever", InMemoryEmbeddingRetriever(leaf_doc_store, top_k=top_k))
     basic_rag.add_component("auto_merging_retriever", AutoMergingRetriever(document_store=parent_doc_store))
-    basic_rag.add_component("prompt_builder", PromptBuilder(template=template))
-    basic_rag.add_component("llm", OpenAIGenerator())
+    basic_rag.add_component("prompt_builder", ChatPromptBuilder(template=template, required_variables=["question", "documents"]))
+    basic_rag.add_component("llm", OpenAIChatGenerator())
     basic_rag.add_component("answer_builder", AnswerBuilder())
 
     basic_rag.connect("query_embedder", "retriever.query_embedding")
@@ -107,7 +110,6 @@ def auto_merging(leaf_doc_store, parent_doc_store, embedding_model, top_k):
     basic_rag.connect("auto_merging_retriever.documents", "prompt_builder.documents")
     basic_rag.connect("prompt_builder", "llm")
     basic_rag.connect("llm.replies", "answer_builder.replies")
-    basic_rag.connect("llm.meta", "answer_builder.meta")
 
     # to see the retrieved documents in the answer
     basic_rag.connect("retriever", "answer_builder.documents")
@@ -119,26 +121,28 @@ def mmr(document_store, embedding_model: str, top_k):
     embedding_retriever = InMemoryEmbeddingRetriever(document_store, top_k=top_k)
     ranker = SentenceTransformersDiversityRanker(strategy="maximum_margin_relevance", top_k=top_k)
 
-    template = """
-    You have to answer the following question based on the given context information only.
-    If the context is empty or just a '\\n' answer with None, example: "None".
+    template = [
+        ChatMessage.from_system(
+            "You are a helpful AI assistant. Answer the following question based on the given context information only. If the context is empty or just a '\n' answer with None, example: 'None'."
+        ),
+        ChatMessage.from_user(
+            """
+            Context:
+            {% for document in documents %}
+                {{ document.content }}
+            {% endfor %}
 
-    Context:
-    {% for document in documents %}
-        {{ document.content }}
-    {% endfor %}
-
-    Question: {{question}}
-    Answer:
-    """
-
+            Question: {{question}}
+            """
+        )
+    ]
 
     mmr_pipeline = Pipeline()
     mmr_pipeline.add_component("text_embedder", text_embedder)
     mmr_pipeline.add_component("embedding_retriever", embedding_retriever)
     mmr_pipeline.add_component("ranker", ranker)
-    mmr_pipeline.add_component("prompt_builder", PromptBuilder(template=template, required_variables=['question', 'documents']))
-    mmr_pipeline.add_component("llm", OpenAIGenerator())
+    mmr_pipeline.add_component("prompt_builder", ChatPromptBuilder(template=template, required_variables=['question', 'documents']))
+    mmr_pipeline.add_component("llm", OpenAIChatGenerator())
     mmr_pipeline.add_component("answer_builder", AnswerBuilder())
 
     mmr_pipeline.connect("text_embedder", "embedding_retriever")
@@ -146,45 +150,45 @@ def mmr(document_store, embedding_model: str, top_k):
     mmr_pipeline.connect("ranker", "prompt_builder.documents")
     mmr_pipeline.connect("prompt_builder", "llm")
     mmr_pipeline.connect("llm.replies", "answer_builder.replies")
-    mmr_pipeline.connect("llm.meta", "answer_builder.meta")
 
     return mmr_pipeline
 
 def hybrid_search(document_store, embedding_model: str, top_k):
-
     text_embedder = SentenceTransformersTextEmbedder(model=embedding_model, progress_bar=False)
     embedding_retriever = InMemoryEmbeddingRetriever(document_store, top_k=top_k)
     bm25_retriever = InMemoryBM25Retriever(document_store, top_k=top_k)
     document_joiner = DocumentJoiner(join_mode="concatenate")
 
-    template = """
-    You have to answer the following question based on the given context information only.
-    If the context is empty or just a '\n' answer with None, example: "None".
+    template = [
+        ChatMessage.from_system(
+            "You are a helpful AI assistant. Answer the following question based on the given context information only. If the context is empty or just a '\n' answer with None, example: 'None'."
+        ),
+        ChatMessage.from_user(
+            """
+            Context:
+            {% for document in documents %}
+                {{ document.content }}
+            {% endfor %}
 
-    Context:
-    {% for document in documents %}
-        {{ document.content }}
-    {% endfor %}
-
-    Question: {{question}}
-    Answer:
-    """
+            Question: {{question}}
+            """
+        )
+    ]
 
     hybrid_retrieval = Pipeline()
     hybrid_retrieval.add_component("text_embedder", text_embedder)
     hybrid_retrieval.add_component("embedding_retriever", embedding_retriever)
     hybrid_retrieval.add_component("bm25_retriever", bm25_retriever)
     hybrid_retrieval.add_component("document_joiner", document_joiner)
-    hybrid_retrieval.add_component("prompt_builder", PromptBuilder(template=template))
-    hybrid_retrieval.add_component("llm", OpenAIGenerator())
+    hybrid_retrieval.add_component("prompt_builder", ChatPromptBuilder(template=template, required_variables=["question", "documents"]))
+    hybrid_retrieval.add_component("llm", OpenAIChatGenerator())
     hybrid_retrieval.add_component("answer_builder", AnswerBuilder())
     hybrid_retrieval.connect("text_embedder", "embedding_retriever")
     hybrid_retrieval.connect("bm25_retriever", "document_joiner")
     hybrid_retrieval.connect("embedding_retriever", "document_joiner")
     hybrid_retrieval.connect("document_joiner.documents", "prompt_builder.documents")
-    hybrid_retrieval.connect("prompt_builder", "llm.prompt")
+    hybrid_retrieval.connect("prompt_builder", "llm")
     hybrid_retrieval.connect("llm.replies", "answer_builder.replies")
-    hybrid_retrieval.connect("llm.meta", "answer_builder.meta")
 
     return hybrid_retrieval
 
