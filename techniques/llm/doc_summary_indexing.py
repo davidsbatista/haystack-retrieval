@@ -107,7 +107,7 @@ def doc_summarisation_query_pipeline(chunk_doc_store, summaries_doc_store, embed
         most relevant chunks to the query are retrieved.
     """
 
-    text_embedder = SentenceTransformersTextEmbedder(model=embedding_model)
+    text_embedder = SentenceTransformersTextEmbedder(model=embedding_model, progress_bar=False)
     summary_embedding_retriever = InMemoryEmbeddingRetriever(summaries_doc_store, top_k=top_k)
     chunk_embedding_retriever = ChunksRetriever(chunk_doc_store)
 
