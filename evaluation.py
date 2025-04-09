@@ -29,6 +29,7 @@ def sentence_window_eval(answers, doc_store, embedding_model, questions, top_k):
     results, inputs = run_evaluation(questions, answers, retrieved_contexts, predicted_answers, embedding_model)
     eval_results_rag_window = EvaluationRunResult(run_name="window-retrieval", inputs=inputs, results=results)
     print(eval_results_rag_window.aggregated_report())
+    return eval_results_rag_window.detailed_report(output_format="df")
 
 def auto_merging_eval(answers, base_path, embedding_model, questions, top_k):
     pdf_documents = transform_pdf_to_documents(base_path)
@@ -72,6 +73,7 @@ def maximum_marginal_relevance_reranking(answers, doc_store, embedding_model, qu
     results, inputs = run_evaluation(questions, answers, retrieved_contexts, predicted_answers, embedding_model)
     eval_results_mmr = EvaluationRunResult(run_name="mmr", inputs=inputs, results=results)
     print(eval_results_mmr.aggregated_report())
+    return eval_results_mmr.detailed_report(output_format="df")
 
 def hybrid_search_eval(answers, doc_store, embedding_model, questions, top_k):
     hybrid = hybrid_search(doc_store, embedding_model, top_k)
@@ -93,6 +95,7 @@ def hybrid_search_eval(answers, doc_store, embedding_model, questions, top_k):
     results, inputs = run_evaluation(questions, answers, retrieved_contexts, predicted_answers, embedding_model)
     eval_results_hybrid = EvaluationRunResult(run_name="hybrid-retrieval", inputs=inputs, results=results)
     print(eval_results_hybrid.aggregated_report())
+    return eval_results_hybrid.detailed_report(output_format="df")
 
 def multi_query_eval(answers, doc_store, embedding_model, questions, n_variations, top_k):
     multi_query_pip = multi_query_pipeline(doc_store, embedding_model)
@@ -118,6 +121,7 @@ def multi_query_eval(answers, doc_store, embedding_model, questions, n_variation
     results, inputs = run_evaluation(questions, answers, retrieved_contexts, predicted_answers, embedding_model)
     eval_results_multi_query = EvaluationRunResult(run_name="multi-query", inputs=inputs, results=results)
     print(eval_results_multi_query.aggregated_report())
+    return eval_results_multi_query.detailed_report(output_format="df")
 
 def hyde_eval(answers, doc_store, embedding_model, questions, nr_completions, top_k):
     rag_hyde = rag_with_hyde(doc_store, embedding_model, nr_completions, top_k)
@@ -138,6 +142,7 @@ def hyde_eval(answers, doc_store, embedding_model, questions, nr_completions, to
     results, inputs = run_evaluation(questions, answers, retrieved_contexts, predicted_answers, embedding_model)
     eval_results_hyde = EvaluationRunResult(run_name="hyde", inputs=inputs, results=results)
     print(eval_results_hyde.aggregated_report())
+    return eval_results_hyde.aggregated_report(output_format="df")
 
 def doc_summary_indexing(embedding_model: str, base_path: str, questions, answers, top_k):
 
@@ -165,6 +170,7 @@ def doc_summary_indexing(embedding_model: str, base_path: str, questions, answer
     results, inputs = run_evaluation(questions, answers, retrieved_contexts, predicted_answers, embedding_model)
     eval_results_doc_summarisation = EvaluationRunResult(run_name="doc-summarisation", inputs=inputs, results=results)
     print(eval_results_doc_summarisation.aggregated_report())
+    return eval_results_doc_summarisation.detailed_report(output_format="df")
 
 def main():
     base_path = "data/ARAGOG/"
@@ -180,30 +186,39 @@ def main():
     doc_store = indexing(embedding_model, chunk_size, base_path)
 
     # classical techniques
+
     print("Sentence window evaluation...")
-    sentence_window_eval(answers, doc_store, embedding_model, questions, top_k)
+    df_results = sentence_window_eval(answers, doc_store, embedding_model, questions, top_k)
+    df_results.to_csv("results_arago/sentence_window_eval.csv", index=False)
+
     print("\n")
     print("Auto-merging evaluation...")
     auto_merging_eval(answers, base_path, embedding_model, questions, top_k)
+    df_results.to_csv("results_arago/auto_merging_eval.csv", index=False)
+
     print("\n")
     print("Maximum Marginal Relevance evaluation...")
-    maximum_marginal_relevance_reranking(answers, doc_store, embedding_model, questions, top_k)
-    print("\nHybrid search evaluation...")
-    hybrid_search_eval(answers, doc_store, embedding_model, questions, top_k)
-    print("\n")
+    df_results = maximum_marginal_relevance_reranking(answers, doc_store, embedding_model, questions, top_k)
+    df_results.to_csv("results_arago/mmr_eval.csv", index=False)
 
-    """
+    print("\nHybrid search evaluation...")
+    df_results = hybrid_search_eval(answers, doc_store, embedding_model, questions, top_k)
+    df_results.to_csv("results_arago/hybrid_search_eval.csv", index=False)
+
     # LLM-based techniques
-    print("Hyde evaluation...")
-    hyde_eval(answers, doc_store, embedding_model, questions, hyde_n_completions, top_k)
+    print("\nHyde evaluation...")
+    df_results = hyde_eval(answers, doc_store, embedding_model, questions, hyde_n_completions, top_k)
+    df_results.to_csv("results_arago/hyde_eval.csv", index=False)
+
     print("\n")
     print("Multi-query evaluation...")
-    multi_query_eval(answers, doc_store, embedding_model, questions, multi_query_n_variations, top_k)
+    df_results = multi_query_eval(answers, doc_store, embedding_model, questions, multi_query_n_variations, top_k)
+    df_results.to_csv("results_arago/multi_query_eval.csv", index=False)
     print("\n")
     print("Document summary indexing evaluation...")
-    doc_summary_indexing(embedding_model, base_path, questions, answers, top_k)
-    print("\n")
-    """
+    df_results = doc_summary_indexing(embedding_model, base_path, questions, answers, top_k)
+    df_results.to_csv("results_arago/doc_summary_indexing_eval.csv", index=False)
+
 
 if __name__ == "__main__":
     main()
