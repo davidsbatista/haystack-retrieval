@@ -3,15 +3,16 @@ from pathlib import Path
 from typing import List
 
 from haystack import Pipeline, component, Document
-from haystack.components.builders import PromptBuilder, AnswerBuilder
+from haystack.components.builders import AnswerBuilder, ChatPromptBuilder
 from haystack.components.converters import PyPDFToDocument, OutputAdapter
 from haystack.components.embedders import SentenceTransformersDocumentEmbedder, SentenceTransformersTextEmbedder
-from haystack.components.generators import OpenAIGenerator
+from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.components.preprocessors import DocumentCleaner, DocumentSplitter
 from haystack.components.retrievers import InMemoryEmbeddingRetriever
 from haystack.components.writers import DocumentWriter
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.document_stores.types import DuplicatePolicy
+from haystack.dataclasses.chat_message import ChatMessage
 
 from techniques.llm.openai_summarisation import summarize
 
@@ -74,7 +75,7 @@ def indexing_doc_summarisation(embedding_model: str, base_path: str, chunk_size 
 
     # chunks
     indexing.add_component("splitter", DocumentSplitter(split_length=chunk_size, split_overlap=0, split_by="sentence"))
-    indexing.add_component("chunk_embedder", SentenceTransformersDocumentEmbedder(model=embedding_model))
+    indexing.add_component("chunk_embedder", SentenceTransformersDocumentEmbedder(model=embedding_model, progress_bar=False))
     indexing.add_component("chunk_writer", DocumentWriter(document_store=chunk_doc_store, policy=DuplicatePolicy.SKIP))
 
     #  connections
@@ -118,26 +119,29 @@ def doc_summarisation_query_pipeline(chunk_doc_store, summaries_doc_store, embed
         custom_filters={'converter': lambda docs: [doc.id for doc in docs]}
     )
 
-    template = """
-    You have to answer the following question based on the given context information only.
-    If the context is empty or just a '\\n' answer with None, example: "None".
+    template = [
+        ChatMessage.from_system(
+            "You are a helpful AI assistant. Answer the following question based on the given context information only. If the context is empty or just a '\n' answer with None, example: 'None'."
+        ),
+        ChatMessage.from_user(
+            """
+            Context:
+            {% for document in documents %}
+                {{ document.content }}
+            {% endfor %}
 
-    Context:
-    {% for document in documents %}
-        {{ document.content }}
-    {% endfor %}
-
-    Question: {{question}}
-    Answer:
-    """
+            Question: {{question}}
+            """
+        )
+    ]
 
     doc_summary_query = Pipeline()
     doc_summary_query.add_component("text_embedder", text_embedder)
     doc_summary_query.add_component("summary_retriever", summary_embedding_retriever)
     doc_summary_query.add_component("chunk_embedding_retriever", chunk_embedding_retriever)
     doc_summary_query.add_component("output_adapter", output_adapter)
-    doc_summary_query.add_component("prompt_builder", PromptBuilder(template=template))
-    doc_summary_query.add_component("llm", OpenAIGenerator())
+    doc_summary_query.add_component("prompt_builder", ChatPromptBuilder(template=template, required_variables=["question", "documents"]))
+    doc_summary_query.add_component("llm", OpenAIChatGenerator())
     doc_summary_query.add_component("answer_builder", AnswerBuilder())
 
     doc_summary_query.connect("text_embedder", "summary_retriever")
@@ -148,6 +152,5 @@ def doc_summarisation_query_pipeline(chunk_doc_store, summaries_doc_store, embed
     doc_summary_query.connect("chunk_embedding_retriever.chunks", "prompt_builder.documents")
     doc_summary_query.connect("prompt_builder", "llm")
     doc_summary_query.connect("llm.replies", "answer_builder.replies")
-    doc_summary_query.connect("llm.meta", "answer_builder.meta")
 
     return doc_summary_query

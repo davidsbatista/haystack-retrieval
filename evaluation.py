@@ -180,13 +180,14 @@ def main():
     hyde_n_completions = 3
     multi_query_n_variations = 3
 
+
     # Read questions and answers from file + Indexing PDF documents
     questions, answers = read_question_answers(base_path)
     print("Indexing documents...")
     doc_store = indexing(embedding_model, chunk_size, base_path)
 
+    """
     # classical techniques
-
     print("Sentence window evaluation...")
     df_results = sentence_window_eval(answers, doc_store, embedding_model, questions, top_k)
     df_results.to_csv("results_arago/sentence_window_eval.csv", index=False)
@@ -204,21 +205,22 @@ def main():
     print("\nHybrid search evaluation...")
     df_results = hybrid_search_eval(answers, doc_store, embedding_model, questions, top_k)
     df_results.to_csv("results_arago/hybrid_search_eval.csv", index=False)
+    """
 
     # LLM-based techniques
     print("\nHyde evaluation...")
     df_results = hyde_eval(answers, doc_store, embedding_model, questions, hyde_n_completions, top_k)
     df_results.to_csv("results_arago/hyde_eval.csv", index=False)
 
-    print("\n")
-    print("Multi-query evaluation...")
+    """
+    print("\nMulti-query evaluation...")
     df_results = multi_query_eval(answers, doc_store, embedding_model, questions, multi_query_n_variations, top_k)
     df_results.to_csv("results_arago/multi_query_eval.csv", index=False)
-    print("\n")
-    print("Document summary indexing evaluation...")
+
+    print("\nDocument summary indexing evaluation...")
     df_results = doc_summary_indexing(embedding_model, base_path, questions, answers, top_k)
     df_results.to_csv("results_arago/doc_summary_indexing_eval.csv", index=False)
-
+    """
 
 if __name__ == "__main__":
     main()

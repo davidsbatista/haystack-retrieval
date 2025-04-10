@@ -15,7 +15,6 @@ from haystack.document_stores.types import DuplicatePolicy
 from haystack.components.retrievers import AutoMergingRetriever
 from haystack.components.preprocessors import HierarchicalDocumentSplitter
 
-# ToDo: ChatPromptBuilder and OpenAIChatGenerator
 
 def sentence_window(doc_store, embedding_model, top_k):
     template = [
