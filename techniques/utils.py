@@ -1,8 +1,7 @@
 import json
 import os
 from pathlib import Path
-from typing import List
-from typing import Tuple
+from typing import List, Any
 
 from haystack import Pipeline, Document
 from haystack.components.converters import PyPDFToDocument
@@ -14,12 +13,24 @@ from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.document_stores.types import DuplicatePolicy
 
 
-def read_question_answers(base_path: str) -> Tuple[List[str], List[str]]:
+def read_question_answers(base_path: str) -> tuple[Any, Any, Any]:
+    """
     with open(base_path + "eval_questions.json", "r") as f:
         data = json.load(f)
         questions = data["questions"]
         answers = data["ground_truths"]
-    return questions, answers
+        docs = data["filepaths"]
+    """
+
+    with open(base_path + "eval_questions_relevant_doc.json", "r") as f_in:
+        data = json.load(f_in)
+        questions = data["questions"]
+        answers = data["ground_truths"]
+        docs = data["filepaths"]
+
+    return questions, answers, docs
+
+
 
 def transform_pdf_to_documents(base_path: str) -> List[Document]:
     full_path = Path(base_path)

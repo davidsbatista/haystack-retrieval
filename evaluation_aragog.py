@@ -16,7 +16,8 @@ def sentence_window_eval(answers, doc_store, embedding_model, questions, top_k):
     for q in tqdm(questions):
         try:
             response = rag_window_retrieval.run(
-                data={"query_embedder": {"text": q}, "prompt_builder": {"question": q}, "answer_builder": {"query": q}}
+                data={"query_embedder": {"text": q}, "prompt_builder": {"question": q}, "answer_builder": {"query": q}},
+                include_outputs_from={"retriever"}
             )
             predicted_answers.append(response["answer_builder"]["answers"][0].data)
             retrieved_contexts.append([d.content for d in response["answer_builder"]["answers"][0].documents])
@@ -40,7 +41,8 @@ def auto_merging_eval(answers, base_path, embedding_model, questions, top_k):
     for q in tqdm(questions):
         try:
             response = auto_merging_retrieval.run(
-                data={"query_embedder": {"text": q}, "prompt_builder": {"question": q}, "answer_builder": {"query": q}}
+                data={"query_embedder": {"text": q}, "prompt_builder": {"question": q}, "answer_builder": {"query": q}},
+                include_outputs_from={"retriever"}
             )
             predicted_answers.append(response["answer_builder"]["answers"][0].data)
             retrieved_contexts.append([d.content for d in response["answer_builder"]["answers"][0].documents])
@@ -62,7 +64,9 @@ def maximum_marginal_relevance_reranking(answers, doc_store, embedding_model, qu
         try:
             response = mmr_pipeline.run(
                 data={"text_embedder": {"text": q}, "prompt_builder": {"question": q}, "ranker": {"query": q},
-                      "answer_builder": {"query": q}})
+                      "answer_builder": {"query": q}},
+                include_outputs_from={"embedding_retriever"}
+            )
             predicted_answers.append(response["answer_builder"]["answers"][0].data)
             retrieved_contexts.append([d.content for d in response["answer_builder"]["answers"][0].documents])
         except BadRequestError as e:
@@ -83,7 +87,8 @@ def hybrid_search_eval(answers, doc_store, embedding_model, questions, top_k):
         try:
             response = hybrid.run(
                 data={"text_embedder": {"text": q}, "bm25_retriever": {"query": q}, "prompt_builder": {"question": q},
-                      "answer_builder": {"query": q}}
+                      "answer_builder": {"query": q}},
+                include_outputs_from={"document_joiner"}
             )
             predicted_answers.append(response["answer_builder"]["answers"][0].data)
             retrieved_contexts.append([d.content for d in response["answer_builder"]["answers"][0].documents])
@@ -109,7 +114,8 @@ def multi_query_eval(answers, doc_store, embedding_model, questions, n_variation
                     'multi_query_handler': {'top_k': top_k},
                     'prompt_builder': {'template_variables': {'question': q}},
                     'answer_builder': {'query': q}
-                }
+                },
+                include_outputs_from={"reranker"}
             )
             predicted_answers.append(response["answer_builder"]["answers"][0].data)
             retrieved_contexts.append([d.content for d in response["answer_builder"]["answers"][0].documents])
@@ -127,18 +133,25 @@ def hyde_eval(answers, doc_store, embedding_model, questions, nr_completions, to
     rag_hyde = rag_with_hyde(doc_store, embedding_model, nr_completions, top_k)
     predicted_answers = []
     retrieved_contexts = []
+    retrieved_documents = []
+
     for q in tqdm(questions):
+
         try:
             response = rag_hyde.run(
-                data={"hyde": {"query": q}, "prompt_builder": {"question": q}, "answer_builder": {"query": q}}
+                data={"hyde": {"query": q}, "prompt_builder": {"question": q}, "answer_builder": {"query": q}},
+                include_outputs_from={"retriever"}
             )
             predicted_answers.append(response["answer_builder"]["answers"][0].data)
             retrieved_contexts.append([d.content for d in response["answer_builder"]["answers"][0].documents])
+            retrieved_documents.append([d.meta['file_path'] for d in response['retriever']['documents']])
+
         except BadRequestError as e:
             print(f"Error with question: {q}")
             print(e)
             predicted_answers.append("error")
             retrieved_contexts.append(retrieved_contexts)
+
     results, inputs = run_evaluation(questions, answers, retrieved_contexts, predicted_answers, embedding_model)
     eval_results_hyde = EvaluationRunResult(run_name="hyde", inputs=inputs, results=results)
     print(eval_results_hyde.aggregated_report())
@@ -180,9 +193,8 @@ def main():
     hyde_n_completions = 3
     multi_query_n_variations = 3
 
-
     # Read questions and answers from file + Indexing PDF documents
-    questions, answers = read_question_answers(base_path)
+    questions, answers, docs = read_question_answers(base_path)
     print("Indexing documents...")
     doc_store = indexing(embedding_model, chunk_size, base_path)
 

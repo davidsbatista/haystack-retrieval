@@ -104,7 +104,7 @@ def rag_with_hyde(document_store, embedding_model, nr_completions, top_k):
     hyde_rag.add_component("hyde", hyde)
     hyde_rag.add_component("retriever", InMemoryEmbeddingRetriever(document_store, top_k=top_k))
     hyde_rag.add_component("prompt_builder", ChatPromptBuilder(template=template, required_variables=["question", "documents"]))
-    hyde_rag.add_component("llm", OpenAIChatGenerator())
+    hyde_rag.add_component("llm", OpenAIChatGenerator(model="gpt-3.5-turbo"))
     hyde_rag.add_component("answer_builder", AnswerBuilder())
 
     hyde_rag.connect("hyde", "retriever.query_embedding")
