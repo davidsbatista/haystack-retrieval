@@ -65,7 +65,7 @@ def maximum_marginal_relevance_reranking(answers, doc_store, embedding_model, qu
             response = mmr_pipeline.run(
                 data={"text_embedder": {"text": q}, "prompt_builder": {"question": q}, "ranker": {"query": q},
                       "answer_builder": {"query": q}},
-                include_outputs_from={"embedding_retriever"}
+                include_outputs_from={"ranker"}
             )
             predicted_answers.append(response["answer_builder"]["answers"][0].data)
             retrieved_contexts.append([d.content for d in response["answer_builder"]["answers"][0].documents])
@@ -133,7 +133,6 @@ def hyde_eval(answers, doc_store, embedding_model, questions, nr_completions, to
     rag_hyde = rag_with_hyde(doc_store, embedding_model, nr_completions, top_k)
     predicted_answers = []
     retrieved_contexts = []
-    retrieved_documents = []
 
     for q in tqdm(questions):
 
@@ -144,7 +143,7 @@ def hyde_eval(answers, doc_store, embedding_model, questions, nr_completions, to
             )
             predicted_answers.append(response["answer_builder"]["answers"][0].data)
             retrieved_contexts.append([d.content for d in response["answer_builder"]["answers"][0].documents])
-            retrieved_documents.append([d.meta['file_path'] for d in response['retriever']['documents']])
+            # retrieved_documents.append([d.meta['file_path'] for d in response['retriever']['documents']])
 
         except BadRequestError as e:
             print(f"Error with question: {q}")
@@ -198,33 +197,28 @@ def main():
     print("Indexing documents...")
     doc_store = indexing(embedding_model, chunk_size, base_path)
 
-    """
     # classical techniques
     print("Sentence window evaluation...")
     df_results = sentence_window_eval(answers, doc_store, embedding_model, questions, top_k)
     df_results.to_csv("results_arago/sentence_window_eval.csv", index=False)
 
-    print("\n")
-    print("Auto-merging evaluation...")
+    print("\nAuto-merging evaluation...")
     auto_merging_eval(answers, base_path, embedding_model, questions, top_k)
     df_results.to_csv("results_arago/auto_merging_eval.csv", index=False)
 
-    print("\n")
-    print("Maximum Marginal Relevance evaluation...")
+    print("\nMaximum Marginal Relevance evaluation...")
     df_results = maximum_marginal_relevance_reranking(answers, doc_store, embedding_model, questions, top_k)
     df_results.to_csv("results_arago/mmr_eval.csv", index=False)
 
     print("\nHybrid search evaluation...")
     df_results = hybrid_search_eval(answers, doc_store, embedding_model, questions, top_k)
     df_results.to_csv("results_arago/hybrid_search_eval.csv", index=False)
-    """
 
     # LLM-based techniques
     print("\nHyde evaluation...")
     df_results = hyde_eval(answers, doc_store, embedding_model, questions, hyde_n_completions, top_k)
     df_results.to_csv("results_arago/hyde_eval.csv", index=False)
 
-    """
     print("\nMulti-query evaluation...")
     df_results = multi_query_eval(answers, doc_store, embedding_model, questions, multi_query_n_variations, top_k)
     df_results.to_csv("results_arago/multi_query_eval.csv", index=False)
@@ -232,7 +226,7 @@ def main():
     print("\nDocument summary indexing evaluation...")
     df_results = doc_summary_indexing(embedding_model, base_path, questions, answers, top_k)
     df_results.to_csv("results_arago/doc_summary_indexing_eval.csv", index=False)
-    """
+
 
 if __name__ == "__main__":
     main()

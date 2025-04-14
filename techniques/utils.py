@@ -30,8 +30,6 @@ def read_question_answers(base_path: str) -> tuple[Any, Any, Any]:
 
     return questions, answers, docs
 
-
-
 def transform_pdf_to_documents(base_path: str) -> List[Document]:
     full_path = Path(base_path)
     files_path = full_path / "papers_for_questions"

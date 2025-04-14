@@ -15,7 +15,6 @@ from haystack.document_stores.types import DuplicatePolicy
 from haystack.components.retrievers import AutoMergingRetriever
 from haystack.components.preprocessors import HierarchicalDocumentSplitter
 
-
 def sentence_window(doc_store, embedding_model, top_k):
     template = [
         ChatMessage.from_system(
@@ -140,7 +139,9 @@ def mmr(document_store, embedding_model: str, top_k):
     mmr_pipeline.add_component("text_embedder", text_embedder)
     mmr_pipeline.add_component("embedding_retriever", embedding_retriever)
     mmr_pipeline.add_component("ranker", ranker)
-    mmr_pipeline.add_component("prompt_builder", ChatPromptBuilder(template=template, required_variables=['question', 'documents']))
+    mmr_pipeline.add_component("prompt_builder", ChatPromptBuilder(
+        template=template, required_variables=['question', 'documents'])
+    )
     mmr_pipeline.add_component("llm", OpenAIChatGenerator())
     mmr_pipeline.add_component("answer_builder", AnswerBuilder())
 
