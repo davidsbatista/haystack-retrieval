@@ -31,12 +31,12 @@ def sentence_window_eval(answers, doc_store, embedding_model, questions, top_k, 
                 data={"query_embedder": {"text": q}, "prompt_builder": {"question": q}, "answer_builder": {"query": q}},
                 include_outputs_from={"retriever"}
             )
-            print("\n")
-            print("Predicted answer: ", response["answer_builder"]["answers"][0].data)
-            print("Gold answer     : ", a)
-            titles = [doc.meta['title'] for doc in response['retriever']['documents']]
-            print(titles)
-            print("\n")
+            # print("\n")
+            # print("Predicted answer: ", response["answer_builder"]["answers"][0].data)
+            # print("Gold answer     : ", a)
+            # titles = [doc.meta['title'] for doc in response['retriever']['documents']]
+            # print(titles)
+            # print("\n")
 
             predicted_answers.append(response["answer_builder"]["answers"][0].data)
             retrieved_contexts.append([d.content for d in response["answer_builder"]["answers"][0].documents])
@@ -88,11 +88,11 @@ def maximum_marginal_relevance_reranking(answers, doc_store, embedding_model, qu
                 include_outputs_from={"ranker"}
             )
 
-            print("\n")
-            print("Predicted answer: ", response["answer_builder"]["answers"][0].data)
-            titles = [doc.meta['title'] for doc in response['ranker']['documents']]
-            print(titles)
-            print("\n")
+            # print("\n")
+            # print("Predicted answer: ", response["answer_builder"]["answers"][0].data)
+            # titles = [doc.meta['title'] for doc in response['ranker']['documents']]
+            # print(titles)
+            # print("\n")
 
             predicted_answers.append(response["answer_builder"]["answers"][0].data)
             retrieved_contexts.append([d.content for d in response["answer_builder"]["answers"][0].documents])
@@ -170,11 +170,11 @@ def hyde_eval(answers, doc_store, embedding_model, questions, nr_completions, to
                 include_outputs_from={"retriever"}
             )
 
-            print("\n")
-            print("Predicted answer: ", response["answer_builder"]["answers"][0].data)
-            titles = [doc.meta['title'] for doc in response['retriever']['documents']]
-            print(titles)
-            print("\n")
+            # print("\n")
+            # print("Predicted answer: ", response["answer_builder"]["answers"][0].data)
+            # titles = [doc.meta['title'] for doc in response['retriever']['documents']]
+            # print(titles)
+            # print("\n")
 
             predicted_answers.append(response["answer_builder"]["answers"][0].data)
             retrieved_contexts.append([d.content for d in response["answer_builder"]["answers"][0].documents])
@@ -287,32 +287,33 @@ def main(df_results=None):
     df_results.to_csv("results_hotpot/sentence_window_eval.csv", index=False)
 
     # FAILING
-    print("\nAuto-merging evaluation...")
-    auto_merging_eval(answers, doc_store, embedding_model, questions, top_k, supporting_facts)
-    df_results.to_csv("results_hotpot/auto_merging_eval.csv", index=False)
+    # print("\nAuto-merging evaluation...")
+    # auto_merging_eval(answers, doc_store, embedding_model, questions, top_k, supporting_facts)
+    # df_results.to_csv("results_hotpot/auto_merging_eval.csv", index=False)
 
-    # print("\nMaximum Marginal Relevance evaluation...")
-    # df_results = maximum_marginal_relevance_reranking(answers, doc_store, embedding_model, questions, top_k, supporting_facts)
-    # df_results.to_csv("results_hotpot/mmr_eval.csv", index=False)
+    print("\nMaximum Marginal Relevance evaluation...")
+    df_results = maximum_marginal_relevance_reranking(answers, doc_store, embedding_model, questions, top_k, supporting_facts)
+    df_results.to_csv("results_hotpot/mmr_eval.csv", index=False)
 
-    # print("\nHybrid search evaluation...")
-    # df_results = hybrid_search_eval(answers, doc_store, embedding_model, questions, top_k, supporting_facts)
-    # df_results.to_csv("results_hotpot/hybrid_search_eval.csv", index=False)
+    print("\nHybrid search evaluation...")
+    df_results = hybrid_search_eval(answers, doc_store, embedding_model, questions, top_k, supporting_facts)
+    df_results.to_csv("results_hotpot/hybrid_search_eval.csv", index=False)
 
     # LLM-based techniques
-    # print("\nHyde evaluation...")
-    # df_results = hyde_eval(answers, doc_store, embedding_model, questions, hyde_n_completions, top_k, supporting_facts)
-    # df_results.to_csv("results_hotpot/hyde_eval.csv", index=False)
+    print("\nHyde evaluation...")
+    df_results = hyde_eval(answers, doc_store, embedding_model, questions, hyde_n_completions, top_k, supporting_facts)
+    df_results.to_csv("results_hotpot/hyde_eval.csv", index=False)
 
-    # print("\nMulti-query evaluation...")
-    # df_results = multi_query_eval(
-    #    answers, doc_store, embedding_model, questions, multi_query_n_variations, top_k, supporting_facts
-    #)
-    #df_results.to_csv("results_hotpot/multi_query_eval.csv", index=False)
+    print("\nMulti-query evaluation...")
+    df_results = multi_query_eval(
+       answers, doc_store, embedding_model, questions, multi_query_n_variations, top_k, supporting_facts
+    )
+    df_results.to_csv("results_hotpot/multi_query_eval.csv", index=False)
 
-    print("\nDocument summary indexing evaluation...")
-    df_results = doc_summary_indexing(embedding_model, doc_store, questions, answers, top_k, supporting_facts)
-    df_results.to_csv("results_hotpot/doc_summary_indexing_eval.csv", index=False)
+    # FAILING
+    # print("\nDocument summary indexing evaluation...")
+    # df_results = doc_summary_indexing(embedding_model, doc_store, questions, answers, top_k, supporting_facts)
+    # df_results.to_csv("results_hotpot/doc_summary_indexing_eval.csv", index=False)
 
 if __name__ == "__main__":
     main()
