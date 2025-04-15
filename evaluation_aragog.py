@@ -3,7 +3,7 @@ from openai import BadRequestError
 from tqdm import tqdm
 
 from techniques.classic import mmr, sentence_window, hybrid_search, hierarchical_indexing, auto_merging
-from techniques.llm.doc_summary_indexing import indexing_doc_summarisation, doc_summarisation_query_pipeline
+from techniques.llm.doc_summary_indexing import indexing_doc_summarisation_arago, doc_summarisation_query_pipeline
 from techniques.llm.hyde import rag_with_hyde
 from techniques.llm.multi_query import multi_query_pipeline
 from techniques.utils import read_question_answers, indexing, transform_pdf_to_documents, run_evaluation
@@ -159,7 +159,7 @@ def hyde_eval(answers, doc_store, embedding_model, questions, nr_completions, to
 def doc_summary_indexing(embedding_model: str, base_path: str, questions, answers, top_k):
 
     print("Indexing summaries...")
-    summaries_doc_store, chunk_doc_store = indexing_doc_summarisation(embedding_model, base_path)
+    summaries_doc_store, chunk_doc_store = indexing_doc_summarisation_arago(embedding_model, base_path)
     query_pipe = doc_summarisation_query_pipeline(
         chunk_doc_store=chunk_doc_store,
         summaries_doc_store=summaries_doc_store,

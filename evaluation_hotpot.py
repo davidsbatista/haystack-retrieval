@@ -14,11 +14,41 @@ from openai import BadRequestError
 from tqdm import tqdm
 
 from techniques.classic import mmr, sentence_window, hybrid_search, hierarchical_indexing, auto_merging
-from techniques.llm.doc_summary_indexing import indexing_doc_summarisation, doc_summarisation_query_pipeline
+from techniques.llm.doc_summary_indexing import doc_summarisation_query_pipeline, indexing_doc_summarisation_hotpot
 from techniques.llm.hyde import rag_with_hyde
 from techniques.llm.multi_query import multi_query_pipeline
 from techniques.utils import run_evaluation
 
+
+@component
+class ProcessHotpot:
+
+    def __init__(self):
+        self.documents = []
+
+    @component.output_types(documents=list[Document])
+    def run(self, raw_data=list[Any]) -> dict[str, Any]:
+        for question_docs in raw_data:
+            for doc in question_docs:   # a question has multiple documents, some are relevant, some are not
+                title = doc[0]
+                sentences = ' '.join([sent for sent in doc[1]])
+                self.documents.append(Document(content=title + ' ' + sentences, meta={"title": title}))
+        return {"documents": self.documents}
+
+def indexing(embedding_model: str, raw_data: list[Any]) -> InMemoryDocumentStore:
+    document_store = InMemoryDocumentStore()
+    pipeline = Pipeline()
+    pre_processor = ProcessHotpot()
+    pipeline.add_component("pre_processor", pre_processor)
+    pipeline.add_component("splitter", DocumentSplitter(split_by="sentence", split_length=3, split_overlap=0))
+    pipeline.add_component("writer", DocumentWriter(document_store=document_store, policy=DuplicatePolicy.SKIP))
+    pipeline.add_component("embedder", SentenceTransformersDocumentEmbedder(embedding_model))
+    pipeline.connect("pre_processor", "splitter")
+    pipeline.connect("splitter", "embedder")
+    pipeline.connect("embedder", "writer")
+    pipeline.run(data={"raw_data":raw_data})
+
+    return document_store
 
 def sentence_window_eval(answers, doc_store, embedding_model, questions, top_k, kwargs=None):
     rag_window_retrieval = sentence_window(doc_store, embedding_model, top_k)
@@ -52,9 +82,15 @@ def sentence_window_eval(answers, doc_store, embedding_model, questions, top_k, 
     print(eval_results_rag_window.aggregated_report())
     return eval_results_rag_window.detailed_report(output_format="df")
 
-def auto_merging_eval(answers, base_path, embedding_model, questions, top_k):
-    pdf_documents = transform_pdf_to_documents(base_path)
-    leaf_doc_store, parent_doc_store = hierarchical_indexing(pdf_documents, embedding_model)
+def auto_merging_eval(answers, documents, embedding_model, questions, top_k, kwargs=None):
+    docs = []
+    for question_docs in documents:
+        for doc in question_docs:  # a question has multiple documents, some are relevant, some are not
+            title = doc[0]
+            sentences = ' '.join([sent for sent in doc[1]])
+            docs.append(Document(content=title + ' ' + sentences, meta={"title": title}))
+
+    leaf_doc_store, parent_doc_store = hierarchical_indexing(docs, embedding_model)
     auto_merging_retrieval = auto_merging(leaf_doc_store, parent_doc_store, embedding_model, top_k)
     predicted_answers = []
     retrieved_contexts = []
@@ -191,10 +227,17 @@ def hyde_eval(answers, doc_store, embedding_model, questions, nr_completions, to
     print(eval_results_hyde.aggregated_report())
     return eval_results_hyde.aggregated_report(output_format="df")
 
-def doc_summary_indexing(embedding_model: str, base_path: str, questions, answers, top_k):
+def doc_summary_indexing(embedding_model: str, documents, questions, answers, top_k, kwargs=None):
+    docs = []
+    for question_docs in documents:
+        for doc in question_docs:  # a question has multiple documents, some are relevant, some are not
+            title = doc[0]
+            sentences = ' '.join([sent for sent in doc[1]])
+            docs.append(Document(content=title + ' ' + sentences, meta={"title": title}))
 
     print("Indexing summaries...")
-    summaries_doc_store, chunk_doc_store = indexing_doc_summarisation(embedding_model, base_path)
+    print("Number of documents: ", len(docs))
+    summaries_doc_store, chunk_doc_store = indexing_doc_summarisation_hotpot(embedding_model, docs)
     query_pipe = doc_summarisation_query_pipeline(
         chunk_doc_store=chunk_doc_store,
         summaries_doc_store=summaries_doc_store,
@@ -219,7 +262,6 @@ def doc_summary_indexing(embedding_model: str, base_path: str, questions, answer
     print(eval_results_doc_summarisation.aggregated_report())
     return eval_results_doc_summarisation.detailed_report(output_format="df")
 
-
 def read_hotpot(base_path: str, sample_size: int = 100):
     with open(base_path, "r") as f:
         data = json.load(f)
@@ -227,38 +269,6 @@ def read_hotpot(base_path: str, sample_size: int = 100):
         random.seed(42)
         random.shuffle(data)
         return data[:sample_size]
-
-@component
-class ProcessHotpot:
-
-    def __init__(self):
-        self.documents = []
-
-    @component.output_types(documents=list[Document])
-    def run(self, raw_data=list[Any]) -> dict[str, Any]:
-        for question_docs in raw_data:
-            for doc in question_docs:   # a question has multiple documents, some are relevant, some are not
-                title = doc[0]
-                sentences = ' '.join([sent for sent in doc[1]])
-                self.documents.append(Document(content=title + ' ' + sentences, meta={"title": title}))
-
-        return {"documents": self.documents}
-
-def indexing(embedding_model: str, raw_data: list[Any]) -> InMemoryDocumentStore:
-    document_store = InMemoryDocumentStore()
-    pipeline = Pipeline()
-    pre_processor = ProcessHotpot()
-    pipeline.add_component("pre_processor", pre_processor)
-    pipeline.add_component("splitter", DocumentSplitter(split_by="sentence", split_length=3, split_overlap=0))
-    pipeline.add_component("writer", DocumentWriter(document_store=document_store, policy=DuplicatePolicy.SKIP))
-    pipeline.add_component("embedder", SentenceTransformersDocumentEmbedder(embedding_model))
-    pipeline.connect("pre_processor", "splitter")
-    pipeline.connect("splitter", "embedder")
-    pipeline.connect("embedder", "writer")
-    pipeline.run(data={"raw_data":raw_data})
-
-    return document_store
-
 
 def main(df_results=None):
 
@@ -268,7 +278,7 @@ def main(df_results=None):
     hyde_n_completions = 3
     multi_query_n_variations = 3
 
-    data = read_hotpot("data/hotpot_train_v1.1.json", sample_size=100)
+    data = read_hotpot("data/hotpot_train_v1.1.json", sample_size=10)
 
     metadata = [{"_id": entry["_id"], "level": entry["level"], "type": entry["type"]} for entry in data]
     golden_data = [{'question': entry["question"], 'answer': entry["answer"], 'supporting_facts': entry["supporting_facts"]} for entry in data]
@@ -281,15 +291,15 @@ def main(df_results=None):
     questions = [entry["question"] for entry in data]
     supporting_facts = [entry["supporting_facts"] for entry in data]
 
+    """
     # classical techniques
     print("Sentence window evaluation...")
     df_results = sentence_window_eval(answers, doc_store, embedding_model, questions, top_k, supporting_facts)
     df_results.to_csv("results_hotpot/sentence_window_eval.csv", index=False)
 
-    # FAILING
-    # print("\nAuto-merging evaluation...")
-    # auto_merging_eval(answers, doc_store, embedding_model, questions, top_k, supporting_facts)
-    # df_results.to_csv("results_hotpot/auto_merging_eval.csv", index=False)
+    print("\nAuto-merging evaluation...")
+    df_results = auto_merging_eval(answers, contexts, embedding_model, questions, top_k, supporting_facts)
+    df_results.to_csv("results_hotpot/auto_merging_eval.csv", index=False)
 
     print("\nMaximum Marginal Relevance evaluation...")
     df_results = maximum_marginal_relevance_reranking(answers, doc_store, embedding_model, questions, top_k, supporting_facts)
@@ -309,11 +319,12 @@ def main(df_results=None):
        answers, doc_store, embedding_model, questions, multi_query_n_variations, top_k, supporting_facts
     )
     df_results.to_csv("results_hotpot/multi_query_eval.csv", index=False)
+    """
 
-    # FAILING
-    # print("\nDocument summary indexing evaluation...")
-    # df_results = doc_summary_indexing(embedding_model, doc_store, questions, answers, top_k, supporting_facts)
-    # df_results.to_csv("results_hotpot/doc_summary_indexing_eval.csv", index=False)
+    print("\nDocument summary indexing evaluation...")
+    df_results = doc_summary_indexing(embedding_model, contexts, questions, answers, top_k, supporting_facts)
+    df_results.to_csv("results_hotpot/doc_summary_indexing_eval.csv", index=False)
+
 
 if __name__ == "__main__":
     main()

@@ -54,7 +54,7 @@ class ChunksRetriever:
 
         return {"chunks": context_docs}
 
-def indexing_doc_summarisation(embedding_model: str, base_path: str, chunk_size = 15):
+def indexing_doc_summarisation_arago(embedding_model: str, base_path: str, chunk_size = 15):
     """
     Summary: document → cleaner → summarizer → embedder → writer
     """
@@ -93,6 +93,37 @@ def indexing_doc_summarisation(embedding_model: str, base_path: str, chunk_size 
 
     pdf_files = [files_path / f_name for f_name in os.listdir(files_path)]
     indexing.run({"converter": {"sources": pdf_files}})
+
+    return summaries_doc_store, chunk_doc_store
+
+def indexing_doc_summarisation_hotpot(embedding_model: str, documents, chunk_size = 15):
+    """
+    Summary: document → cleaner → summarizer → embedder → writer
+    """
+
+    chunk_doc_store = InMemoryDocumentStore()
+    summaries_doc_store = InMemoryDocumentStore()
+    indexing = Pipeline()
+
+    # summary
+    indexing.add_component("summarizer", Summarizer())
+    indexing.add_component("summary_embedder", SentenceTransformersDocumentEmbedder(
+        model=embedding_model, progress_bar=False)
+    )
+    indexing.add_component("summary_writer", DocumentWriter(document_store=summaries_doc_store))
+    # connect components for summary
+    indexing.connect("summarizer", "summary_embedder")
+    indexing.connect("summary_embedder", "summary_writer")
+    # index the documents
+    indexing.run({"summarizer": {"documents": documents}})
+
+    # chunks
+    indexing.add_component("splitter", DocumentSplitter(split_length=chunk_size, split_overlap=0, split_by="sentence"))
+    indexing.add_component("chunk_embedder", SentenceTransformersDocumentEmbedder(model=embedding_model, progress_bar=False))
+    indexing.add_component("chunk_writer", DocumentWriter(document_store=chunk_doc_store, policy=DuplicatePolicy.SKIP))
+    # connect components for chunks
+    indexing.connect("splitter", "chunk_embedder")
+    indexing.connect("chunk_embedder", "chunk_writer")
 
     return summaries_doc_store, chunk_doc_store
 
