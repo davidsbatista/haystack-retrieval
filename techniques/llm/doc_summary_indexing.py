@@ -16,6 +16,7 @@ from haystack.dataclasses.chat_message import ChatMessage
 
 from techniques.llm.openai_summarisation import summarize
 
+from tqdm import tqdm
 
 @component
 class Summarizer:
@@ -26,7 +27,7 @@ class Summarizer:
     @component.output_types(summary=List[Document])
     def run(self, documents: List[Document], detail: float = 0.05):
         summaries = []
-        for doc in documents:
+        for doc in tqdm(documents):
             summary = summarize(doc.content, detail=detail, model=self.model)
             summaries.append(Document(content=summary, meta=doc.meta, id=doc.id))
         return {"summary": summaries}

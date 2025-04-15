@@ -145,7 +145,7 @@ def summarize(text: str,
         system_message_content += f"\n\n{additional_instructions}"
 
     accumulated_summaries = []
-    for chunk in tqdm(text_chunks):
+    for chunk in text_chunks:
         if summarize_recursively and accumulated_summaries:
             # Creating a structured prompt for recursive summarization
             accumulated_summaries_string = '\n\n'.join(accumulated_summaries)

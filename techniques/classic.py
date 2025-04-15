@@ -1,9 +1,8 @@
 from typing import Tuple, List
 
 from haystack import Pipeline, Document
-from haystack.components.builders import AnswerBuilder, PromptBuilder, ChatPromptBuilder
+from haystack.components.builders import AnswerBuilder, ChatPromptBuilder
 from haystack.components.embedders import SentenceTransformersTextEmbedder, SentenceTransformersDocumentEmbedder
-from haystack.components.generators import OpenAIGenerator
 from haystack.dataclasses.chat_message import ChatMessage
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.components.joiners import DocumentJoiner
@@ -15,10 +14,12 @@ from haystack.document_stores.types import DuplicatePolicy
 from haystack.components.retrievers import AutoMergingRetriever
 from haystack.components.preprocessors import HierarchicalDocumentSplitter
 
-def sentence_window(doc_store, embedding_model, top_k):
-    template = [
+def sentence_window(doc_store, embedding_model, top_k, window_size, template=None):
+
+    default = [
         ChatMessage.from_system(
-            "You are a helpful AI assistant. Answer the following question based on the given context information only. If the context is empty or just a '\n' answer with None, example: 'None'."
+            "You are a helpful AI assistant. Answer the following question based on the given context information only. "
+            "If the context is empty or just a '\n' answer with None, example: 'None'."
         ),
         ChatMessage.from_user(
             """
@@ -32,12 +33,14 @@ def sentence_window(doc_store, embedding_model, top_k):
         )
     ]
 
+    template = template if template else default
+
     basic_rag = Pipeline()
     basic_rag.add_component(
         "query_embedder", SentenceTransformersTextEmbedder(model=embedding_model, progress_bar=False)
     )
     basic_rag.add_component("retriever", InMemoryEmbeddingRetriever(doc_store, top_k=top_k))
-    basic_rag.add_component("sentence_window_retriever", SentenceWindowRetriever(document_store=doc_store))
+    basic_rag.add_component("sentence_window_retriever", SentenceWindowRetriever(document_store=doc_store, window_size=window_size))
     basic_rag.add_component("prompt_builder", ChatPromptBuilder(template=template, required_variables=["question", "documents"]))
     basic_rag.add_component("llm", OpenAIChatGenerator())
     basic_rag.add_component("answer_builder", AnswerBuilder())
@@ -54,7 +57,7 @@ def sentence_window(doc_store, embedding_model, top_k):
     return basic_rag
 
 def hierarchical_indexing(documents: List[Document], embedding_model: str) -> Tuple[InMemoryDocumentStore, InMemoryDocumentStore]:
-    splitter = HierarchicalDocumentSplitter(block_sizes={10, 5}, split_overlap=0, split_by="sentence")
+    splitter = HierarchicalDocumentSplitter(block_sizes={10, 5, 3}, split_overlap=0, split_by="sentence")
     docs = splitter.run(documents)
 
     embedder = SentenceTransformersDocumentEmbedder(model=embedding_model, progress_bar=True)

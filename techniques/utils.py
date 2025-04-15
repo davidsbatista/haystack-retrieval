@@ -42,7 +42,7 @@ def transform_pdf_to_documents(base_path: str) -> List[Document]:
 
     return pdf_documents['cleaner']['documents']
 
-def run_evaluation(sample_questions, sample_answers, retrieved_contexts, predicted_answers, embedding_model):
+def run_evaluation_aragog(sample_questions, sample_answers, retrieved_contexts, predicted_answers, embedding_model):
     eval_pipeline = Pipeline()
     # eval_pipeline.add_component("context_relevance", ContextRelevanceEvaluator(raise_on_failure=False))
     # eval_pipeline.add_component("faithfulness", FaithfulnessEvaluator(raise_on_failure=False))
@@ -60,6 +60,27 @@ def run_evaluation(sample_questions, sample_answers, retrieved_contexts, predict
     }
 
     return results, inputs
+
+def run_evaluation_hotpot(questions, answers, docs, retrieved_docs, predicted_answers, embedding_model):
+    eval_pipeline = Pipeline()
+    eval_pipeline.add_component("sas", SASEvaluator(model=embedding_model))
+
+    eval_pipeline_results = eval_pipeline.run(
+        {"sas": {"predicted_answers": predicted_answers, "ground_truth_answers": answers}}
+    )
+
+    results = {"sas": eval_pipeline_results["sas"]}
+    inputs = {
+        "questions": questions,
+        "docs": docs,
+        "true_answers": answers,
+        "predicted_answers": predicted_answers,
+        "retrieved_docs": retrieved_docs,
+    }
+
+    return results, inputs
+
+
 
 def indexing(embedding_model: str, chunk_size: int, base_path: str) -> InMemoryDocumentStore:
     full_path = Path(base_path)

@@ -6,7 +6,7 @@ from techniques.classic import mmr, sentence_window, hybrid_search, hierarchical
 from techniques.llm.doc_summary_indexing import indexing_doc_summarisation_arago, doc_summarisation_query_pipeline
 from techniques.llm.hyde import rag_with_hyde
 from techniques.llm.multi_query import multi_query_pipeline
-from techniques.utils import read_question_answers, indexing, transform_pdf_to_documents, run_evaluation
+from techniques.utils import read_question_answers, indexing, transform_pdf_to_documents, run_evaluation_aragog
 
 def sentence_window_eval(answers, doc_store, embedding_model, questions, top_k):
     rag_window_retrieval = sentence_window(doc_store, embedding_model, top_k)
@@ -27,7 +27,7 @@ def sentence_window_eval(answers, doc_store, embedding_model, questions, top_k):
             predicted_answers.append("error")
             retrieved_contexts.append(retrieved_contexts)
 
-    results, inputs = run_evaluation(questions, answers, retrieved_contexts, predicted_answers, embedding_model)
+    results, inputs = run_evaluation_aragog(questions, answers, retrieved_contexts, predicted_answers, embedding_model)
     eval_results_rag_window = EvaluationRunResult(run_name="window-retrieval", inputs=inputs, results=results)
     print(eval_results_rag_window.aggregated_report())
     return eval_results_rag_window.detailed_report(output_format="df")
@@ -51,7 +51,7 @@ def auto_merging_eval(answers, base_path, embedding_model, questions, top_k):
             print(e)
             predicted_answers.append("error")
             retrieved_contexts.append(retrieved_contexts)
-    results, inputs = run_evaluation(questions, answers, retrieved_contexts, predicted_answers, embedding_model)
+    results, inputs = run_evaluation_aragog(questions, answers, retrieved_contexts, predicted_answers, embedding_model)
     eval_results_auto_merging = EvaluationRunResult(run_name="auto-merging-retrieval", inputs=inputs, results=results)
     print(eval_results_auto_merging.aggregated_report())
     return eval_results_auto_merging.detailed_report(output_format="df")
@@ -74,7 +74,7 @@ def maximum_marginal_relevance_reranking(answers, doc_store, embedding_model, qu
             print(e)
             predicted_answers.append("error")
             retrieved_contexts.append(retrieved_contexts)
-    results, inputs = run_evaluation(questions, answers, retrieved_contexts, predicted_answers, embedding_model)
+    results, inputs = run_evaluation_aragog(questions, answers, retrieved_contexts, predicted_answers, embedding_model)
     eval_results_mmr = EvaluationRunResult(run_name="mmr", inputs=inputs, results=results)
     print(eval_results_mmr.aggregated_report())
     return eval_results_mmr.detailed_report(output_format="df")
@@ -97,7 +97,7 @@ def hybrid_search_eval(answers, doc_store, embedding_model, questions, top_k):
             print(e)
             predicted_answers.append("error")
             retrieved_contexts.append(retrieved_contexts)
-    results, inputs = run_evaluation(questions, answers, retrieved_contexts, predicted_answers, embedding_model)
+    results, inputs = run_evaluation_aragog(questions, answers, retrieved_contexts, predicted_answers, embedding_model)
     eval_results_hybrid = EvaluationRunResult(run_name="hybrid-retrieval", inputs=inputs, results=results)
     print(eval_results_hybrid.aggregated_report())
     return eval_results_hybrid.detailed_report(output_format="df")
@@ -124,7 +124,7 @@ def multi_query_eval(answers, doc_store, embedding_model, questions, n_variation
             print(e)
             predicted_answers.append("error")
             retrieved_contexts.append(retrieved_contexts)
-    results, inputs = run_evaluation(questions, answers, retrieved_contexts, predicted_answers, embedding_model)
+    results, inputs = run_evaluation_aragog(questions, answers, retrieved_contexts, predicted_answers, embedding_model)
     eval_results_multi_query = EvaluationRunResult(run_name="multi-query", inputs=inputs, results=results)
     print(eval_results_multi_query.aggregated_report())
     return eval_results_multi_query.detailed_report(output_format="df")
@@ -151,7 +151,7 @@ def hyde_eval(answers, doc_store, embedding_model, questions, nr_completions, to
             predicted_answers.append("error")
             retrieved_contexts.append(retrieved_contexts)
 
-    results, inputs = run_evaluation(questions, answers, retrieved_contexts, predicted_answers, embedding_model)
+    results, inputs = run_evaluation_aragog(questions, answers, retrieved_contexts, predicted_answers, embedding_model)
     eval_results_hyde = EvaluationRunResult(run_name="hyde", inputs=inputs, results=results)
     print(eval_results_hyde.aggregated_report())
     return eval_results_hyde.aggregated_report(output_format="df")
@@ -179,7 +179,7 @@ def doc_summary_indexing(embedding_model: str, base_path: str, questions, answer
             print(e)
             predicted_answers.append("error")
             retrieved_contexts.append(retrieved_contexts)
-    results, inputs = run_evaluation(questions, answers, retrieved_contexts, predicted_answers, embedding_model)
+    results, inputs = run_evaluation_aragog(questions, answers, retrieved_contexts, predicted_answers, embedding_model)
     eval_results_doc_summarisation = EvaluationRunResult(run_name="doc-summarisation", inputs=inputs, results=results)
     print(eval_results_doc_summarisation.aggregated_report())
     return eval_results_doc_summarisation.detailed_report(output_format="df")

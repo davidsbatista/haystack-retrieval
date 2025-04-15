@@ -1,8 +1,8 @@
 import json
 from typing import Any
-from tqdm import tqdm
 
 from haystack import Pipeline, component, Document
+from haystack.dataclasses import ChatMessage
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.components.writers.document_writer import DocumentWriter
 from haystack.document_stores.types import DuplicatePolicy
@@ -17,7 +17,7 @@ from techniques.classic import mmr, sentence_window, hybrid_search, hierarchical
 from techniques.llm.doc_summary_indexing import doc_summarisation_query_pipeline, indexing_doc_summarisation_hotpot
 from techniques.llm.hyde import rag_with_hyde
 from techniques.llm.multi_query import multi_query_pipeline
-from techniques.utils import run_evaluation
+from techniques.utils import run_evaluation_hotpot
 
 
 @component
@@ -51,33 +51,51 @@ def indexing(embedding_model: str, raw_data: list[Any]) -> InMemoryDocumentStore
     return document_store
 
 def sentence_window_eval(answers, doc_store, embedding_model, questions, top_k, kwargs=None):
-    rag_window_retrieval = sentence_window(doc_store, embedding_model, top_k)
 
+    window_size = kwargs["window_size"] if kwargs and "window_size" in kwargs else 3
+    supporting_facts = kwargs["supporting_facts"] if kwargs and "supporting_facts" in kwargs else None
+
+    template = [
+        ChatMessage.from_system(
+            "You are a helpful AI assistant. Answer the following question in a short and simple manner based only on "
+            "the given context information only. If the questions asks you about who/what/when don't add any additional "
+            "information, answer the question directly with the answer only even if its too short."
+            "If the context is empty or just a '\n' answer with None, example: 'None'."
+        ),
+        ChatMessage.from_user(
+            """
+            Context:
+            {% for document in documents %}
+                {{ document }}
+            {% endfor %}
+
+            Question: {{question}}
+            """
+        )
+    ]
+
+
+    rag_window_retrieval = sentence_window(doc_store, embedding_model, top_k, window_size=window_size, template=template)
     predicted_answers = []
-    retrieved_contexts = []
-    for q, a in tqdm(zip(questions, answers)):
+    retrieved_docs = []
+    for q in tqdm(questions):
         try:
             response = rag_window_retrieval.run(
                 data={"query_embedder": {"text": q}, "prompt_builder": {"question": q}, "answer_builder": {"query": q}},
                 include_outputs_from={"retriever"}
             )
-            # print("\n")
-            # print("Predicted answer: ", response["answer_builder"]["answers"][0].data)
-            # print("Gold answer     : ", a)
-            # titles = [doc.meta['title'] for doc in response['retriever']['documents']]
-            # print(titles)
-            # print("\n")
-
             predicted_answers.append(response["answer_builder"]["answers"][0].data)
-            retrieved_contexts.append([d.content for d in response["answer_builder"]["answers"][0].documents])
+            retrieved_docs.append([d.meta['title'] for d in response["retriever"]["documents"]])
 
         except BadRequestError as e:
             print(f"Error with question: {q}")
             print(e)
             predicted_answers.append("error")
-            retrieved_contexts.append(retrieved_contexts)
+            retrieved_docs.append("error")
 
-    results, inputs = run_evaluation(questions, answers, retrieved_contexts, predicted_answers, embedding_model)
+    results, inputs = run_evaluation_hotpot(
+        questions, answers, supporting_facts, retrieved_docs, predicted_answers, embedding_model
+    )
     eval_results_rag_window = EvaluationRunResult(run_name="window-retrieval", inputs=inputs, results=results)
     print(eval_results_rag_window.aggregated_report())
     return eval_results_rag_window.detailed_report(output_format="df")
@@ -265,20 +283,16 @@ def doc_summary_indexing(embedding_model: str, documents, questions, answers, to
 def read_hotpot(base_path: str, sample_size: int = 100):
     with open(base_path, "r") as f:
         data = json.load(f)
-        import random
-        random.seed(42)
-        random.shuffle(data)
         return data[:sample_size]
 
-def main(df_results=None):
+def main():
 
     embedding_model = "sentence-transformers/all-MiniLM-L6-v2"
-    chunk_size = 15
     top_k = 3
     hyde_n_completions = 3
     multi_query_n_variations = 3
 
-    data = read_hotpot("data/hotpot_train_v1.1.json", sample_size=10)
+    data = read_hotpot("data/hotpot_train_v1.1.json", sample_size=100)
 
     metadata = [{"_id": entry["_id"], "level": entry["level"], "type": entry["type"]} for entry in data]
     golden_data = [{'question': entry["question"], 'answer': entry["answer"], 'supporting_facts': entry["supporting_facts"]} for entry in data]
@@ -289,14 +303,15 @@ def main(df_results=None):
 
     answers = [entry["answer"] for entry in data]
     questions = [entry["question"] for entry in data]
-    supporting_facts = [entry["supporting_facts"] for entry in data]
+    supporting_facts = [set([fact[0] for fact in entry["supporting_facts"]]) for entry in data]
 
-    """
     # classical techniques
     print("Sentence window evaluation...")
-    df_results = sentence_window_eval(answers, doc_store, embedding_model, questions, top_k, supporting_facts)
+    kwargs = {"window_size": 4, 'supporting_facts': supporting_facts}
+    df_results = sentence_window_eval(answers, doc_store, embedding_model, questions, top_k, kwargs)
     df_results.to_csv("results_hotpot/sentence_window_eval.csv", index=False)
 
+    """
     print("\nAuto-merging evaluation...")
     df_results = auto_merging_eval(answers, contexts, embedding_model, questions, top_k, supporting_facts)
     df_results.to_csv("results_hotpot/auto_merging_eval.csv", index=False)
@@ -319,12 +334,11 @@ def main(df_results=None):
        answers, doc_store, embedding_model, questions, multi_query_n_variations, top_k, supporting_facts
     )
     df_results.to_csv("results_hotpot/multi_query_eval.csv", index=False)
-    """
 
     print("\nDocument summary indexing evaluation...")
     df_results = doc_summary_indexing(embedding_model, contexts, questions, answers, top_k, supporting_facts)
     df_results.to_csv("results_hotpot/doc_summary_indexing_eval.csv", index=False)
-
+    """
 
 if __name__ == "__main__":
     main()
