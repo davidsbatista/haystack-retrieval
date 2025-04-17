@@ -12,6 +12,10 @@ from haystack.components.writers import DocumentWriter
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.document_stores.types import DuplicatePolicy
 
+from techniques.FalloutEvaluator import FalloutEvaluator
+from techniques.PrecisionEvaluator import PrecisionEvaluator
+from techniques.RecallEvaluator import RecallEvaluator
+
 
 def read_question_answers(base_path: str) -> tuple[Any, Any, Any]:
     """
@@ -64,12 +68,26 @@ def run_evaluation_aragog(sample_questions, sample_answers, retrieved_contexts, 
 def run_evaluation_hotpot(questions, answers, docs, retrieved_docs, predicted_answers, embedding_model):
     eval_pipeline = Pipeline()
     eval_pipeline.add_component("sas", SASEvaluator(model=embedding_model))
+    eval_pipeline.add_component("recall", RecallEvaluator())
+    eval_pipeline.add_component("precision", PrecisionEvaluator())
+    eval_pipeline.add_component("fall_out", FalloutEvaluator())
 
-    eval_pipeline_results = eval_pipeline.run(
-        {"sas": {"predicted_answers": predicted_answers, "ground_truth_answers": answers}}
+    eval_results = eval_pipeline.run(
+        {
+            "sas": {"predicted_answers": predicted_answers, "ground_truth_answers": answers},
+            "recall": {"ground_truth_documents": docs, "retrieved_documents": retrieved_docs},
+            "precision": {"ground_truth_documents": docs, "retrieved_documents": retrieved_docs},
+            "fall_out": {"ground_truth_documents": docs, "retrieved_documents": retrieved_docs},
+        }
     )
 
-    results = {"sas": eval_pipeline_results["sas"]}
+    results = {
+        "sas": eval_results["sas"],
+        "recall": eval_results["recall"],
+        "precision": eval_results["precision"],
+        "fall_out": eval_results["fall_out"],
+    }
+
     inputs = {
         "questions": questions,
         "docs": docs,
@@ -79,7 +97,6 @@ def run_evaluation_hotpot(questions, answers, docs, retrieved_docs, predicted_an
     }
 
     return results, inputs
-
 
 
 def indexing(embedding_model: str, chunk_size: int, base_path: str) -> InMemoryDocumentStore:

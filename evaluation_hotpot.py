@@ -74,7 +74,6 @@ def sentence_window_eval(answers, doc_store, embedding_model, questions, top_k, 
         )
     ]
 
-
     rag_window_retrieval = sentence_window(doc_store, embedding_model, top_k, window_size=window_size, template=template)
     predicted_answers = []
     retrieved_docs = []
@@ -292,6 +291,8 @@ def main():
     hyde_n_completions = 3
     multi_query_n_variations = 3
 
+    print("Loading hotpot dataset")
+
     data = read_hotpot("data/hotpot_train_v1.1.json", sample_size=100)
 
     metadata = [{"_id": entry["_id"], "level": entry["level"], "type": entry["type"]} for entry in data]
@@ -304,6 +305,12 @@ def main():
     answers = [entry["answer"] for entry in data]
     questions = [entry["question"] for entry in data]
     supporting_facts = [set([fact[0] for fact in entry["supporting_facts"]]) for entry in data]
+
+    sample_size = 5
+
+    answers = answers[:sample_size]
+    questions = questions[:sample_size]
+    supporting_facts = supporting_facts[:sample_size]
 
     # classical techniques
     print("Sentence window evaluation...")
