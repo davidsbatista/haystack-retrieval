@@ -102,33 +102,31 @@ def indexing_doc_summarisation_hotpot(embedding_model: str, documents, chunk_siz
     Summary: document → cleaner → summarizer → embedder → writer
     """
 
-    chunk_doc_store = InMemoryDocumentStore()
     summaries_doc_store = InMemoryDocumentStore()
-    indexing = Pipeline()
+    indexing_summaries = Pipeline()
+    summariser = Summarizer()
+    embedder = SentenceTransformersDocumentEmbedder(model=embedding_model, progress_bar=False)
+    doc_writer = DocumentWriter(document_store=summaries_doc_store, policy=DuplicatePolicy.SKIP)
+    indexing_summaries.add_component("summarizer", summariser)
+    indexing_summaries.add_component("summary_embedder", embedder)
+    indexing_summaries.add_component("summary_writer", doc_writer)
+    indexing_summaries.connect("summarizer", "summary_embedder")
+    indexing_summaries.connect("summary_embedder", "summary_writer")
+    indexing_summaries.run({"summarizer": {"documents": documents}})
 
-    # summary
-    indexing.add_component("summarizer", Summarizer())
-    indexing.add_component("summary_embedder", SentenceTransformersDocumentEmbedder(
-        model=embedding_model, progress_bar=False)
-    )
-    indexing.add_component("summary_writer", DocumentWriter(document_store=summaries_doc_store))
-    # connect components for summary
-    indexing.connect("summarizer", "summary_embedder")
-    indexing.connect("summary_embedder", "summary_writer")
-    # index the documents
-    indexing.run({"summarizer": {"documents": documents}})
+    chunk_doc_store = InMemoryDocumentStore()
+    indexing_chunks = Pipeline()
+    indexing_chunks.add_component("splitter", DocumentSplitter(split_by="sentence", split_length=3, split_overlap=0))
+    indexing_chunks.add_component("writer", DocumentWriter(document_store=chunk_doc_store, policy=DuplicatePolicy.SKIP))
+    indexing_chunks.add_component("embedder", SentenceTransformersDocumentEmbedder(embedding_model))
+    indexing_chunks.connect("splitter", "embedder")
+    indexing_chunks.connect("embedder", "writer")
+    indexing_chunks.run(data={"splitter": {"documents": documents}})
 
-    # chunks
-    indexing.add_component("splitter", DocumentSplitter(split_length=chunk_size, split_overlap=0, split_by="sentence"))
-    indexing.add_component("chunk_embedder", SentenceTransformersDocumentEmbedder(model=embedding_model, progress_bar=False))
-    indexing.add_component("chunk_writer", DocumentWriter(document_store=chunk_doc_store, policy=DuplicatePolicy.SKIP))
-    # connect components for chunks
-    indexing.connect("splitter", "chunk_embedder")
-    indexing.connect("chunk_embedder", "chunk_writer")
 
     return summaries_doc_store, chunk_doc_store
 
-def doc_summarisation_query_pipeline(chunk_doc_store, summaries_doc_store, embedding_model, top_k):
+def doc_summarisation_query_pipeline(chunk_doc_store, summaries_doc_store, embedding_model, top_k, template=None):
     """
     Two levels of retrieval:
 
@@ -151,9 +149,10 @@ def doc_summarisation_query_pipeline(chunk_doc_store, summaries_doc_store, embed
         custom_filters={'converter': lambda docs: [doc.id for doc in docs]}
     )
 
-    template = [
+    default = [
         ChatMessage.from_system(
-            "You are a helpful AI assistant. Answer the following question based on the given context information only. If the context is empty or just a '\n' answer with None, example: 'None'."
+            "You are a helpful AI assistant. Answer the following question based on the given context information only. "
+            "If the context is empty or just a '\n' answer with None, example: 'None'."
         ),
         ChatMessage.from_user(
             """
@@ -166,6 +165,8 @@ def doc_summarisation_query_pipeline(chunk_doc_store, summaries_doc_store, embed
             """
         )
     ]
+
+    template = template if template else default
 
     doc_summary_query = Pipeline()
     doc_summary_query.add_component("text_embedder", text_embedder)

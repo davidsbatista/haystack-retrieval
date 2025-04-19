@@ -81,10 +81,11 @@ class HypotheticalDocumentEmbedder:
         return {"hypothetical_embedding": hyde_vector[0].tolist(), "documents": result["embedder"]["documents"]}
 
 
-def rag_with_hyde(document_store, embedding_model, nr_completions, top_k):
-    template = [
+def rag_with_hyde(document_store, embedding_model, nr_completions, top_k, template=None):
+    default = [
         ChatMessage.from_system(
-            "You are a helpful AI assistant. Answer the following question based on the given context information only. If the context is empty or just a '\n' answer with None, example: 'None'."
+            "You are a helpful AI assistant. Answer the following question based on the given context information only. "
+            "If the context is empty or just a '\n' answer with None, example: 'None'."
         ),
         ChatMessage.from_user(
             """
@@ -98,12 +99,15 @@ def rag_with_hyde(document_store, embedding_model, nr_completions, top_k):
         )
     ]
 
-    hyde = HypotheticalDocumentEmbedder(embedder_model=embedding_model, nr_completions=nr_completions)
+    template = template if template else default
 
+    hyde = HypotheticalDocumentEmbedder(embedder_model=embedding_model, nr_completions=nr_completions)
     hyde_rag = Pipeline()
     hyde_rag.add_component("hyde", hyde)
     hyde_rag.add_component("retriever", InMemoryEmbeddingRetriever(document_store, top_k=top_k))
-    hyde_rag.add_component("prompt_builder", ChatPromptBuilder(template=template, required_variables=["question", "documents"]))
+    hyde_rag.add_component("prompt_builder", ChatPromptBuilder(
+        template=template, required_variables=["question", "documents"])
+    )
     hyde_rag.add_component("llm", OpenAIChatGenerator(model="gpt-3.5-turbo"))
     hyde_rag.add_component("answer_builder", AnswerBuilder())
 

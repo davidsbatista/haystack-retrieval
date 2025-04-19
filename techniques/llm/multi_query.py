@@ -22,7 +22,11 @@ class MultiQueryGenerator:
         
         template = [
             ChatMessage.from_system(
-                "You are an AI language model assistant. Your task is to generate {{n_variations}} different versions of the given user question to retrieve relevant documents from a vector database. By generating multiple perspectives on the user question, your goal is to help the user overcome some of the limitations of distance-based similarity search. Provide these alternative questions separated by newlines."
+                "You are an AI language model assistant. Your task is to generate {{n_variations}} different versions "
+                "of the given user question to retrieve relevant documents from a vector database. By generating "
+                "multiple perspectives on the user question, your goal is to help the user overcome some of the "
+                "limitations of distance-based similarity search. Provide these alternative questions "
+                "separated by newlines."
             ),
             ChatMessage.from_user(
                 "Original question: {{question}}"
@@ -60,7 +64,8 @@ class MultiQueryHandler:
 
 
 def multi_query_pipeline(doc_store, embedding_model: str, template=None):
-    template = [
+
+    default = [
         ChatMessage.from_system(
             "You have to answer the following question based on the given context information only. "
             "If the context is empty or just a '\\n' answer with None, example: \"None\"."
@@ -69,6 +74,8 @@ def multi_query_pipeline(doc_store, embedding_model: str, template=None):
             "Context:\n{% for document in documents %}    {{ document.content }}\n{% endfor %}\n\nQuestion: {{question}}\nAnswer:"
         )
     ]
+
+    template = template if template else default
 
     pipeline = Pipeline()
 
