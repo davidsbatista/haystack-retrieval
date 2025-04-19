@@ -79,8 +79,9 @@ def hierarchical_indexing(documents: List[Document], embedding_model: str) -> Tu
 
     return leaf_doc_store, parent_doc_store
 
-def auto_merging(leaf_doc_store, parent_doc_store, embedding_model, top_k):
-    template = [
+def auto_merging(leaf_doc_store, parent_doc_store, embedding_model, top_k, template=None):
+
+    default = [
         ChatMessage.from_system(
             "You are a helpful AI assistant. Answer the following question based on the given context information only. If the context is empty or just a '\n' answer with None, example: 'None'."
         ),
@@ -95,6 +96,8 @@ def auto_merging(leaf_doc_store, parent_doc_store, embedding_model, top_k):
             """
         )
     ]
+
+    template = template if template else default
 
     basic_rag = Pipeline()
     basic_rag.add_component(
@@ -117,12 +120,12 @@ def auto_merging(leaf_doc_store, parent_doc_store, embedding_model, top_k):
 
     return basic_rag
 
-def mmr(document_store, embedding_model: str, top_k):
+def mmr(document_store, embedding_model: str, top_k, template=None):
     text_embedder = SentenceTransformersTextEmbedder(model=embedding_model, progress_bar=False)
     embedding_retriever = InMemoryEmbeddingRetriever(document_store, top_k=top_k)
     ranker = SentenceTransformersDiversityRanker(strategy="maximum_margin_relevance", top_k=top_k)
 
-    template = [
+    default = [
         ChatMessage.from_system(
             "You are a helpful AI assistant. Answer the following question based on the given context information only. If the context is empty or just a '\n' answer with None, example: 'None'."
         ),
@@ -137,6 +140,8 @@ def mmr(document_store, embedding_model: str, top_k):
             """
         )
     ]
+
+    template = template if template else default
 
     mmr_pipeline = Pipeline()
     mmr_pipeline.add_component("text_embedder", text_embedder)
@@ -156,13 +161,13 @@ def mmr(document_store, embedding_model: str, top_k):
 
     return mmr_pipeline
 
-def hybrid_search(document_store, embedding_model: str, top_k):
+def hybrid_search(document_store, embedding_model: str, top_k, template=None):
     text_embedder = SentenceTransformersTextEmbedder(model=embedding_model, progress_bar=False)
     embedding_retriever = InMemoryEmbeddingRetriever(document_store, top_k=top_k)
     bm25_retriever = InMemoryBM25Retriever(document_store, top_k=top_k)
     document_joiner = DocumentJoiner(join_mode="concatenate")
 
-    template = [
+    default = [
         ChatMessage.from_system(
             "You are a helpful AI assistant. Answer the following question based on the given context information only. If the context is empty or just a '\n' answer with None, example: 'None'."
         ),
@@ -177,6 +182,8 @@ def hybrid_search(document_store, embedding_model: str, top_k):
             """
         )
     ]
+
+    template = template if template else default
 
     hybrid_retrieval = Pipeline()
     hybrid_retrieval.add_component("text_embedder", text_embedder)

@@ -12,9 +12,9 @@ from haystack.components.writers import DocumentWriter
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.document_stores.types import DuplicatePolicy
 
-from techniques.FalloutEvaluator import FalloutEvaluator
-from techniques.PrecisionEvaluator import PrecisionEvaluator
-from techniques.RecallEvaluator import RecallEvaluator
+from techniques.fallout_evaluator import FalloutEvaluator
+from techniques.precision_evaluator import PrecisionEvaluator
+from techniques.recall_evaluator import RecallEvaluator
 
 
 def read_question_answers(base_path: str) -> tuple[Any, Any, Any]:

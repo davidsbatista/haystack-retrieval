@@ -59,7 +59,7 @@ class MultiQueryHandler:
         return {"answers": documents}
 
 
-def multi_query_pipeline(doc_store, embedding_model: str):
+def multi_query_pipeline(doc_store, embedding_model: str, template=None):
     template = [
         ChatMessage.from_system(
             "You have to answer the following question based on the given context information only. "
