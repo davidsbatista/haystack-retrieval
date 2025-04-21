@@ -8,6 +8,7 @@ from haystack.components.writers.document_writer import DocumentWriter
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.components.embedders.sentence_transformers_document_embedder import SentenceTransformersDocumentEmbedder
 from haystack.components.preprocessors import DocumentSplitter
+from haystack.components.builders import ChatPromptBuilder
 
 from haystack.evaluation import EvaluationRunResult
 from openai import BadRequestError
@@ -40,7 +41,7 @@ def indexing(embedding_model: str, raw_data: list[Any]) -> InMemoryDocumentStore
     pipeline = Pipeline()
     pre_processor = ProcessHotpot()
     pipeline.add_component("pre_processor", pre_processor)
-    pipeline.add_component("splitter", DocumentSplitter(split_by="sentence", split_length=3, split_overlap=0))
+    pipeline.add_component("splitter", DocumentSplitter(split_by="sentence", split_length=15, split_overlap=0))
     pipeline.add_component("writer", DocumentWriter(document_store=document_store, policy=DuplicatePolicy.SKIP))
     pipeline.add_component("embedder", SentenceTransformersDocumentEmbedder(embedding_model))
     pipeline.connect("pre_processor", "splitter")
@@ -60,7 +61,7 @@ def sentence_window_eval(answers, doc_store, embedding_model, questions, top_k, 
             "You are a helpful AI assistant. Answer the following question in a short and simple manner based only on "
             "the given context information only. If the questions asks you about who/what/when don't add any additional "
             "information, answer the question directly with the answer only even if its too short."
-            "If the context is empty or just a '\n' answer with None, example: 'None'."
+            "If the context is empty or just a '\\n' answer with None, example: 'None'."
         ),
         ChatMessage.from_user(
             """
@@ -158,8 +159,8 @@ def maximum_marginal_relevance_reranking(answers, doc_store, embedding_model, qu
         ChatMessage.from_system(
             "You are a helpful AI assistant. Answer the following question in a short and simple manner based only on "
             "the given context information only. If the questions asks you about who/what/when don't add any additional "
-            "information, answer the question directly with the answer only even if its too short."
-            "If the context is empty or just a '\n' answer with None, example: 'None'."
+            "information, answer the question directly with the answer only, even if its too short."
+            "If the context is empty answer with None, example: 'None'."
         ),
         ChatMessage.from_user(
             """
@@ -176,21 +177,50 @@ def maximum_marginal_relevance_reranking(answers, doc_store, embedding_model, qu
     mmr_pipeline = mmr(doc_store, embedding_model, top_k, template=template)
     predicted_answers = []
     retrieved_docs = []
-    for q in tqdm(questions):
+    context = []
+    for q, facts in zip(tqdm(questions), supporting_facts):
         try:
             response = mmr_pipeline.run(
                 data={"text_embedder": {"text": q}, "prompt_builder": {"question": q}, "ranker": {"query": q},
                       "answer_builder": {"query": q}},
                 include_outputs_from={"ranker"}
             )
-            predicted_answers.append(response["answer_builder"]["answers"][0].data)
+            predicted_answer = response["answer_builder"]["answers"][0].data
+            predicted_answers.append(predicted_answer)
             retrieved_docs.append([d.meta['title'] for d in response["ranker"]["documents"]])
+            context.append([d.content for d in response["ranker"]["documents"]])
+
+            """
+            this_docs = [d.meta['title'] for d in response["ranker"]["documents"]]
+            if set(facts) in set(this_docs):
+                this_context = [d.content for d in response["ranker"]["documents"]]
+                prompt = ChatPromptBuilder(template=template, required_variables=['question', 'documents'])
+                result = prompt.run(question=q, documents=this_context)
+                from haystack.components.generators.chat import OpenAIChatGenerator
+                chat = OpenAIChatGenerator()
+                answer = chat.run(messages=result["prompt"])
+
+                print("\n\n")
+                print("Question: ", q)
+                print("Supporting facts: ", facts)
+                print("Documents: ", this_docs)
+
+
+                print(result["prompt"][0].text)
+                print(result["prompt"][1].text)
+                print("Answer: ", answer)
+                print("\n\n")
+            """
+
         except BadRequestError as e:
             print(f"Error with question: {q}")
             print(e)
             predicted_answers.append("error")
             retrieved_docs.append("error")
-    results, inputs = run_evaluation_hotpot(questions, answers, supporting_facts, retrieved_docs, predicted_answers, embedding_model)
+
+    results, inputs = run_evaluation_hotpot(
+        questions, answers, supporting_facts, retrieved_docs, predicted_answers, embedding_model
+    )
     eval_results_mmr = EvaluationRunResult(run_name="mmr", inputs=inputs, results=results)
     print(eval_results_mmr.aggregated_report())
     return eval_results_mmr.detailed_report(output_format="df")
@@ -292,7 +322,27 @@ def multi_query_eval(answers, doc_store, embedding_model, questions, n_variation
 
 def hyde_eval(answers, doc_store, embedding_model, questions, nr_completions, top_k, kwargs=None):
     supporting_facts = kwargs["supporting_facts"] if kwargs and "supporting_facts" in kwargs else None
-    rag_hyde = rag_with_hyde(doc_store, embedding_model, nr_completions, top_k)
+
+    template = [
+        ChatMessage.from_system(
+            "You are a helpful AI assistant. Answer the following question in a short and simple manner based only on "
+            "the given context information only. If the questions asks you about who/what/when don't add any additional "
+            "information, answer the question directly with the answer only even if its too short."
+            "If the context is empty or just a '\n' answer with None, example: 'None'."
+        ),
+        ChatMessage.from_user(
+            """
+            Context:
+            {% for document in documents %}
+                {{ document }}
+            {% endfor %}
+
+            Question: {{question}}
+            """
+        )
+    ]
+
+    rag_hyde = rag_with_hyde(doc_store, embedding_model, nr_completions, top_k, template=template)
     predicted_answers = []
     retrieved_docs = []
 
@@ -319,6 +369,26 @@ def hyde_eval(answers, doc_store, embedding_model, questions, nr_completions, to
 
 def doc_summary_indexing(embedding_model: str, documents, questions, answers, top_k, kwargs=None):
     supporting_facts = kwargs["supporting_facts"] if kwargs and "supporting_facts" in kwargs else None
+
+    template = [
+        ChatMessage.from_system(
+            "You are a helpful AI assistant. Answer the following question in a short and simple manner based only on "
+            "the given context information only. If the questions asks you about who/what/when don't add any additional "
+            "information, answer the question directly with the answer only even if its too short."
+            "If the context is empty or just a '\n' answer with None, example: 'None'."
+        ),
+        ChatMessage.from_user(
+            """
+            Context:
+            {% for document in documents %}
+                {{ document }}
+            {% endfor %}
+
+            Question: {{question}}
+            """
+        )
+    ]
+
     docs = []
     for question_docs in documents:
         for doc in question_docs:  # a question has multiple documents, some are relevant, some are not
@@ -333,7 +403,8 @@ def doc_summary_indexing(embedding_model: str, documents, questions, answers, to
         chunk_doc_store=chunk_doc_store,
         summaries_doc_store=summaries_doc_store,
         embedding_model=embedding_model,
-        top_k=top_k
+        top_k=top_k,
+        template=template
     )
     predicted_answers = []
     retrieved_docs = []
@@ -341,9 +412,10 @@ def doc_summary_indexing(embedding_model: str, documents, questions, answers, to
     for q in tqdm(questions):
         try:
             response = query_pipe.run(
-                data={"text_embedder": {"text": q}, "prompt_builder": {"question": q}, "answer_builder": {"query": q}})
+                data={"text_embedder": {"text": q}, "prompt_builder": {"question": q}, "answer_builder": {"query": q}},
+                include_outputs_from={"chunk_embedding_retriever"})
             predicted_answers.append(response["answer_builder"]["answers"][0].data)
-            retrieved_docs.append([d.meta['title'] for d in response["retriever"]["documents"]])
+            retrieved_docs.append([d.meta['title'] for d in response["chunk_embedding_retriever"]["chunks"]])
         except BadRequestError as e:
             print(f"Error with question: {q}")
             print(e)
@@ -368,11 +440,7 @@ def main():
     multi_query_n_variations = 3
 
     print("Loading hotpot dataset")
-
     data = read_hotpot("data/hotpot_train_v1.1.json", sample_size=100)
-
-    metadata = [{"_id": entry["_id"], "level": entry["level"], "type": entry["type"]} for entry in data]
-    golden_data = [{'question': entry["question"], 'answer': entry["answer"], 'supporting_facts': entry["supporting_facts"]} for entry in data]
     contexts = [entry["context"] for entry in data]
 
     print("Number of documents: ", len(contexts))
@@ -381,13 +449,11 @@ def main():
     answers = [entry["answer"] for entry in data]
     questions = [entry["question"] for entry in data]
     supporting_facts = [set([fact[0] for fact in entry["supporting_facts"]]) for entry in data]
-
-    print(f"Evaluating techniques over {len(questions)} questions...")
+    print(f"\nEvaluating techniques over {len(questions)} questions...")
 
     # classical techniques
-    """
     print("Sentence window evaluation...")
-    kwargs = {"window_size": 4, 'supporting_facts': supporting_facts}
+    kwargs = {"window_size": 5, 'supporting_facts': supporting_facts}
     df_results = sentence_window_eval(answers, doc_store, embedding_model, questions, top_k, kwargs)
     df_results.to_csv("results_hotpot/sentence_window_eval.csv", index=False)
 
@@ -418,7 +484,6 @@ def main():
        answers, doc_store, embedding_model, questions, multi_query_n_variations, top_k, kwargs
     )
     df_results.to_csv("results_hotpot/multi_query_eval.csv", index=False)
-    """
 
     print("\nDocument summary indexing evaluation...")
     kwargs = {'supporting_facts': supporting_facts}

@@ -116,7 +116,9 @@ def indexing_doc_summarisation_hotpot(embedding_model: str, documents, chunk_siz
 
     chunk_doc_store = InMemoryDocumentStore()
     indexing_chunks = Pipeline()
-    indexing_chunks.add_component("splitter", DocumentSplitter(split_by="sentence", split_length=3, split_overlap=0))
+    indexing_chunks.add_component("splitter", DocumentSplitter(
+        split_by="sentence", split_length=15, split_overlap=0)
+    )
     indexing_chunks.add_component("writer", DocumentWriter(document_store=chunk_doc_store, policy=DuplicatePolicy.SKIP))
     indexing_chunks.add_component("embedder", SentenceTransformersDocumentEmbedder(embedding_model))
     indexing_chunks.connect("splitter", "embedder")

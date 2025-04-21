@@ -123,11 +123,14 @@ def auto_merging(leaf_doc_store, parent_doc_store, embedding_model, top_k, templ
 def mmr(document_store, embedding_model: str, top_k, template=None):
     text_embedder = SentenceTransformersTextEmbedder(model=embedding_model, progress_bar=False)
     embedding_retriever = InMemoryEmbeddingRetriever(document_store, top_k=top_k)
-    ranker = SentenceTransformersDiversityRanker(strategy="maximum_margin_relevance", top_k=top_k)
+    ranker = SentenceTransformersDiversityRanker(
+        strategy="maximum_margin_relevance", top_k=top_k, lambda_threshold=0.75
+    )
 
     default = [
         ChatMessage.from_system(
-            "You are a helpful AI assistant. Answer the following question based on the given context information only. If the context is empty or just a '\n' answer with None, example: 'None'."
+            "You are a helpful AI assistant. Answer the following question based on the given context information only. "
+            "If the context is empty or just a '\n' answer with None, example: 'None'."
         ),
         ChatMessage.from_user(
             """
