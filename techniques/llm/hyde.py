@@ -2,44 +2,45 @@ from typing import Any, Dict, List
 
 from haystack import Document, component, default_from_dict, default_to_dict
 from haystack import Pipeline
-from haystack.components.builders import PromptBuilder, AnswerBuilder
+from haystack.components.builders import AnswerBuilder
 from haystack.components.converters import OutputAdapter
 from haystack.components.embedders.sentence_transformers_document_embedder import SentenceTransformersDocumentEmbedder
-from haystack.components.generators import OpenAIGenerator
 from haystack.components.retrievers import InMemoryEmbeddingRetriever
-from haystack.utils import Secret
 from numpy import array, mean
+from haystack.components.builders import ChatPromptBuilder
+from haystack.components.generators.chat import OpenAIChatGenerator
+from haystack.dataclasses.chat_message import ChatMessage
 
 
 @component
 class HypotheticalDocumentEmbedder:
     def __init__(
         self,
-        instruct_llm: str = "gpt-3.5-turbo",
-        instruct_llm_api_key: Secret = Secret.from_env_var("OPENAI_API_KEY"),
         nr_completions: int = 5,
         embedder_model: str = "sentence-transformers/all-MiniLM-L6-v2",
     ):
-        self.instruct_llm = instruct_llm
-        self.instruct_llm_api_key = instruct_llm_api_key
         self.nr_completions = nr_completions
         self.embedder_model = embedder_model
-        self.generator = OpenAIGenerator(
-            api_key=self.instruct_llm_api_key,
-            model=self.instruct_llm,
-            generation_kwargs={"n": self.nr_completions, "temperature": 0.75, "max_tokens": 400},
-        )
-        self.prompt_builder = PromptBuilder(
-            template="""Given a question, generate a paragraph of text that answers the question.
-            Question: {{question}}
-            Paragraph:
-            """
+        self.generator = OpenAIChatGenerator()
+        
+        template = [
+            ChatMessage.from_system(
+                "You are a helpful AI assistant. Given a question, generate a paragraph of text that answers the question."
+            ),
+            ChatMessage.from_user(
+                "Question: {{question}}"
+            )
+        ]
+        
+        self.prompt_builder = ChatPromptBuilder(
+            template=template,
+            required_variables=["question"]
         )
 
         self.adapter = OutputAdapter(
             template="{{answers | build_doc}}",
             output_type=List[Document],
-            custom_filters={"build_doc": lambda data: [Document(content=d) for d in data]},
+            custom_filters={"build_doc": lambda data: [Document(content=msg.text) for msg in data]},
             unsafe=True,
         )
 
@@ -58,8 +59,6 @@ class HypotheticalDocumentEmbedder:
     def to_dict(self) -> Dict[str, Any]:
         data = default_to_dict(
             self,
-            instruct_llm=self.instruct_llm,
-            instruct_llm_api_key=self.instruct_llm_api_key,
             nr_completions=self.nr_completions,
             embedder_model=self.embedder_model,
         )
@@ -82,34 +81,40 @@ class HypotheticalDocumentEmbedder:
         return {"hypothetical_embedding": hyde_vector[0].tolist(), "documents": result["embedder"]["documents"]}
 
 
-def rag_with_hyde(document_store, embedding_model, nr_completions, top_k):
-    template = """
-        You have to answer the following question based on the given context information only.
-        If the context is empty or just a '\n' answer with None, example: "None".
+def rag_with_hyde(document_store, embedding_model, nr_completions, top_k, template=None):
+    default = [
+        ChatMessage.from_system(
+            "You are a helpful AI assistant. Answer the following question based on the given context information only. "
+            "If the context is empty or just a '\n' answer with None, example: 'None'."
+        ),
+        ChatMessage.from_user(
+            """
+            Context:
+            {% for document in documents %}
+                {{ document.content }}
+            {% endfor %}
 
-        Context:
-        {% for document in documents %}
-            {{ document.content }}
-        {% endfor %}
+            Question: {{question}}
+            """
+        )
+    ]
 
-        Question: {{question}}
-        Answer:
-        """
+    template = template if template else default
 
     hyde = HypotheticalDocumentEmbedder(embedder_model=embedding_model, nr_completions=nr_completions)
-
     hyde_rag = Pipeline()
     hyde_rag.add_component("hyde", hyde)
     hyde_rag.add_component("retriever", InMemoryEmbeddingRetriever(document_store, top_k=top_k))
-    hyde_rag.add_component("prompt_builder", PromptBuilder(template=template))
-    hyde_rag.add_component("llm", OpenAIGenerator(model="gpt-3.5-turbo"))
+    hyde_rag.add_component("prompt_builder", ChatPromptBuilder(
+        template=template, required_variables=["question", "documents"])
+    )
+    hyde_rag.add_component("llm", OpenAIChatGenerator(model="gpt-3.5-turbo"))
     hyde_rag.add_component("answer_builder", AnswerBuilder())
 
     hyde_rag.connect("hyde", "retriever.query_embedding")
     hyde_rag.connect("retriever", "prompt_builder.documents")
     hyde_rag.connect("prompt_builder", "llm")
     hyde_rag.connect("llm.replies", "answer_builder.replies")
-    hyde_rag.connect("llm.meta", "answer_builder.meta")
     hyde_rag.connect("retriever", "answer_builder.documents")
 
     return hyde_rag

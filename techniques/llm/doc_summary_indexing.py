@@ -3,18 +3,20 @@ from pathlib import Path
 from typing import List
 
 from haystack import Pipeline, component, Document
-from haystack.components.builders import PromptBuilder, AnswerBuilder
+from haystack.components.builders import AnswerBuilder, ChatPromptBuilder
 from haystack.components.converters import PyPDFToDocument, OutputAdapter
 from haystack.components.embedders import SentenceTransformersDocumentEmbedder, SentenceTransformersTextEmbedder
-from haystack.components.generators import OpenAIGenerator
+from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.components.preprocessors import DocumentCleaner, DocumentSplitter
 from haystack.components.retrievers import InMemoryEmbeddingRetriever
 from haystack.components.writers import DocumentWriter
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.document_stores.types import DuplicatePolicy
+from haystack.dataclasses.chat_message import ChatMessage
 
 from techniques.llm.openai_summarisation import summarize
 
+from tqdm import tqdm
 
 @component
 class Summarizer:
@@ -25,7 +27,7 @@ class Summarizer:
     @component.output_types(summary=List[Document])
     def run(self, documents: List[Document], detail: float = 0.05):
         summaries = []
-        for doc in documents:
+        for doc in tqdm(documents):
             summary = summarize(doc.content, detail=detail, model=self.model)
             summaries.append(Document(content=summary, meta=doc.meta, id=doc.id))
         return {"summary": summaries}
@@ -53,7 +55,7 @@ class ChunksRetriever:
 
         return {"chunks": context_docs}
 
-def indexing_doc_summarisation(embedding_model: str, base_path: str, chunk_size = 15):
+def indexing_doc_summarisation_arago(embedding_model: str, base_path: str, chunk_size = 15):
     """
     Summary: document → cleaner → summarizer → embedder → writer
     """
@@ -74,7 +76,7 @@ def indexing_doc_summarisation(embedding_model: str, base_path: str, chunk_size 
 
     # chunks
     indexing.add_component("splitter", DocumentSplitter(split_length=chunk_size, split_overlap=0, split_by="sentence"))
-    indexing.add_component("chunk_embedder", SentenceTransformersDocumentEmbedder(model=embedding_model))
+    indexing.add_component("chunk_embedder", SentenceTransformersDocumentEmbedder(model=embedding_model, progress_bar=False))
     indexing.add_component("chunk_writer", DocumentWriter(document_store=chunk_doc_store, policy=DuplicatePolicy.SKIP))
 
     #  connections
@@ -95,7 +97,38 @@ def indexing_doc_summarisation(embedding_model: str, base_path: str, chunk_size 
 
     return summaries_doc_store, chunk_doc_store
 
-def doc_summarisation_query_pipeline(chunk_doc_store, summaries_doc_store, embedding_model, top_k):
+def indexing_doc_summarisation_hotpot(embedding_model: str, documents, chunk_size = 15):
+    """
+    Summary: document → cleaner → summarizer → embedder → writer
+    """
+
+    summaries_doc_store = InMemoryDocumentStore()
+    indexing_summaries = Pipeline()
+    summariser = Summarizer()
+    embedder = SentenceTransformersDocumentEmbedder(model=embedding_model, progress_bar=False)
+    doc_writer = DocumentWriter(document_store=summaries_doc_store, policy=DuplicatePolicy.SKIP)
+    indexing_summaries.add_component("summarizer", summariser)
+    indexing_summaries.add_component("summary_embedder", embedder)
+    indexing_summaries.add_component("summary_writer", doc_writer)
+    indexing_summaries.connect("summarizer", "summary_embedder")
+    indexing_summaries.connect("summary_embedder", "summary_writer")
+    indexing_summaries.run({"summarizer": {"documents": documents}})
+
+    chunk_doc_store = InMemoryDocumentStore()
+    indexing_chunks = Pipeline()
+    indexing_chunks.add_component("splitter", DocumentSplitter(
+        split_by="sentence", split_length=15, split_overlap=0)
+    )
+    indexing_chunks.add_component("writer", DocumentWriter(document_store=chunk_doc_store, policy=DuplicatePolicy.SKIP))
+    indexing_chunks.add_component("embedder", SentenceTransformersDocumentEmbedder(embedding_model))
+    indexing_chunks.connect("splitter", "embedder")
+    indexing_chunks.connect("embedder", "writer")
+    indexing_chunks.run(data={"splitter": {"documents": documents}})
+
+
+    return summaries_doc_store, chunk_doc_store
+
+def doc_summarisation_query_pipeline(chunk_doc_store, summaries_doc_store, embedding_model, top_k, template=None):
     """
     Two levels of retrieval:
 
@@ -107,7 +140,7 @@ def doc_summarisation_query_pipeline(chunk_doc_store, summaries_doc_store, embed
         most relevant chunks to the query are retrieved.
     """
 
-    text_embedder = SentenceTransformersTextEmbedder(model=embedding_model)
+    text_embedder = SentenceTransformersTextEmbedder(model=embedding_model, progress_bar=False)
     summary_embedding_retriever = InMemoryEmbeddingRetriever(summaries_doc_store, top_k=top_k)
     chunk_embedding_retriever = ChunksRetriever(chunk_doc_store)
 
@@ -118,26 +151,32 @@ def doc_summarisation_query_pipeline(chunk_doc_store, summaries_doc_store, embed
         custom_filters={'converter': lambda docs: [doc.id for doc in docs]}
     )
 
-    template = """
-    You have to answer the following question based on the given context information only.
-    If the context is empty or just a '\\n' answer with None, example: "None".
+    default = [
+        ChatMessage.from_system(
+            "You are a helpful AI assistant. Answer the following question based on the given context information only. "
+            "If the context is empty or just a '\n' answer with None, example: 'None'."
+        ),
+        ChatMessage.from_user(
+            """
+            Context:
+            {% for document in documents %}
+                {{ document.content }}
+            {% endfor %}
 
-    Context:
-    {% for document in documents %}
-        {{ document.content }}
-    {% endfor %}
+            Question: {{question}}
+            """
+        )
+    ]
 
-    Question: {{question}}
-    Answer:
-    """
+    template = template if template else default
 
     doc_summary_query = Pipeline()
     doc_summary_query.add_component("text_embedder", text_embedder)
     doc_summary_query.add_component("summary_retriever", summary_embedding_retriever)
     doc_summary_query.add_component("chunk_embedding_retriever", chunk_embedding_retriever)
     doc_summary_query.add_component("output_adapter", output_adapter)
-    doc_summary_query.add_component("prompt_builder", PromptBuilder(template=template))
-    doc_summary_query.add_component("llm", OpenAIGenerator())
+    doc_summary_query.add_component("prompt_builder", ChatPromptBuilder(template=template, required_variables=["question", "documents"]))
+    doc_summary_query.add_component("llm", OpenAIChatGenerator())
     doc_summary_query.add_component("answer_builder", AnswerBuilder())
 
     doc_summary_query.connect("text_embedder", "summary_retriever")
@@ -148,6 +187,5 @@ def doc_summarisation_query_pipeline(chunk_doc_store, summaries_doc_store, embed
     doc_summary_query.connect("chunk_embedding_retriever.chunks", "prompt_builder.documents")
     doc_summary_query.connect("prompt_builder", "llm")
     doc_summary_query.connect("llm.replies", "answer_builder.replies")
-    doc_summary_query.connect("llm.meta", "answer_builder.meta")
 
     return doc_summary_query
