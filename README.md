@@ -4,8 +4,8 @@ This repository contains showcases different retrieval techniques within the con
 The retrieval techniques are implemented using the [Haystack 2.x](https://github,com/deepset-ai/haystack) library and 
 evaluated using the [ARAGOG dataset](https://github.com/predlico/ARAGOG) with the Semantic Similarity metric.  This was part of a presentation given at the Open NLP Meetup #14: on 2024-11-28 hold at [deepset](https://deepset.ai) in Berlin.
 
-- [Presentation Slides](presentation.pdf)
-- [YouTube video recording](https://www.youtube.com/watch?v=_XntQls_j1A)
+- [Presentation Slides](2025_04_PyConLit.pdf)
+<!-- - [YouTube video recording](https://www.youtube.com/watch?v=_XntQls_j1A)-->
 
 ### Retrieval Techniques 
 
